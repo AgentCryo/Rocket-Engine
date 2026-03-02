@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <RootNamespace>OpenTK_Lighting_2._0</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <PackageId>RERL</PackageId>
+        <Version>0.0.1</Version>
+        <Authors>AgentCryo</Authors>
+        <Description>Rocket Engine Rendering Library</Description>
+        <PackageTags>graphics;opengl;opentk;rendering</PackageTags>
+
+        <RepositoryUrl>https://github.com/AgentCryo/Rocket-Engine-Rendering-Library</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageProjectUrl>https://github.com/AgentCryo/Rocket-Engine-Rendering-Library</PackageProjectUrl>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="OpenTK" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Compute" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Core" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Graphics" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Input" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Mathematics" Version="4.9.4" />
+        <PackageReference Include="OpenTK.redist.glfw" Version="3.4.0.47" />
+        <PackageReference Include="OpenTK.Windowing.Common" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Windowing.Desktop" Version="4.9.4" />
+        <PackageReference Include="OpenTK.Windowing.GraphicsLibraryFramework" Version="4.9.4" />
+    </ItemGroup>
+
+</Project>
