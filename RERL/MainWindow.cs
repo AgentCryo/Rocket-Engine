@@ -14,6 +14,10 @@ public class MainWindow(GameWindowSettings gameWindowSettings, NativeWindowSetti
     {
         base.OnLoad();
         
+        var assembly = AppDomain.CurrentDomain .GetAssemblies() .FirstOrDefault(a => a.GetName().Name == "RERL");
+
+        Console.WriteLine(assembly != null ? "Library Found" : "Library not Found");
+
         GL.ClearColor(Color.Green);
     }
     
