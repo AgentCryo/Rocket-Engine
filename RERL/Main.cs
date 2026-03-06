@@ -1,3 +1,4 @@
+using OpenTK.Mathematics;
 using System.Drawing;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
@@ -7,39 +8,48 @@ using RERL.Objects;
 
 namespace RERL;
 
-public class MainWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
-    : GameWindow(gameWindowSettings, nativeWindowSettings)
+public static class Main
 {
+    struct Vertex
+    {
+        Vector3 _position;
+        Vector3 _normal;
+        Vector2 _textureCoord;
+    }
+
+    struct Mesh
+    {
+        Vertex[] _vertices;
+        int[] _indices;
+    }
+    
     #region Temp
 
-    readonly float[] _vertices = {
+    static readonly float[] _vertices = {
         -0.5f, -0.5f, 0.0f, //Bottom-left vertex
         0.5f, -0.5f, 0.0f, //Bottom-right vertex
         0.0f,  0.5f, 0.0f  //Top vertex
     };
-    
-    int _vertexBufferObject;
 
-    Shader _tempShader;
+    static int _vertexBufferObject;
 
-    int _vertexArrayObject;
-    
-    Vector3[] _colors =
+    static Shader _tempShader;
+
+    static int _vertexArrayObject;
+
+    static Vector3[] _colors =
     {
         new(1f, 0f, 0f),
         new(0f, 1f, 0f),
         new(0f, 0f, 1f)
     };
-    
-    float _time;
+
+    static float _time;
     
     #endregion
     
-    
-    protected override void OnLoad()
+    public static void Load()
     {
-        base.OnLoad();
-        
         var assembly = AppDomain.CurrentDomain .GetAssemblies() .FirstOrDefault(a => a.GetName().Name == "RERL");
 
         Console.WriteLine(assembly != null ? $"Library Found: {assembly.FullName}" : "Library not Found");
@@ -63,10 +73,8 @@ public class MainWindow(GameWindowSettings gameWindowSettings, NativeWindowSetti
         #endregion
     }
     
-    protected override void OnRenderFrame(FrameEventArgs args)
+    public static void RenderFrame(GameWindow gameWindow, FrameEventArgs args)
     {
-        base.OnRenderFrame(args);
-
         GL.Clear(ClearBufferMask.ColorBufferBit);
         
         #region Temp
@@ -97,6 +105,6 @@ public class MainWindow(GameWindowSettings gameWindowSettings, NativeWindowSetti
         
         #endregion
         
-        SwapBuffers();
+        gameWindow.SwapBuffers();
     }
 }

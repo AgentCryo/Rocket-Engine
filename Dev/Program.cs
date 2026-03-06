@@ -1,7 +1,5 @@
-﻿using OpenTK.Mathematics;
-using OpenTK.Windowing.Common;
+﻿using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
-using RERL;
 
 namespace Dev;
 
@@ -14,7 +12,7 @@ class Program
             Title = "Lighting OpenTK",
             WindowState = WindowState.Fullscreen
         };
-        using var window = new MainWindow(GameWindowSettings.Default, nativeSettings);
-        window.Run();
+        using var game = new Game(GameWindowSettings.Default, nativeSettings);
+        game.Run();
     }
 }
