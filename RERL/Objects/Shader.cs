@@ -103,6 +103,13 @@ public class Shader
 
             case Vector3 v3:
                 GL.Uniform3(location, v3); break;
+            
+            case Vector3[] v3Arr:
+                if (v3Arr.Length == 0)
+                    return silence ? false : throw new Exception($"ERR: Cannot set empty Vector3[] uniform '{name}'.");
+
+                GL.Uniform3(location, v3Arr.Length, ref v3Arr[0].X);
+                break;
 
             case Vector4 v4:
                 GL.Uniform4(location, v4); break;

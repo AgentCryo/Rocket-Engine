@@ -1,5 +1,6 @@
 using System.Drawing;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using RERL.Objects;
@@ -22,6 +23,15 @@ public class MainWindow(GameWindowSettings gameWindowSettings, NativeWindowSetti
     Shader _tempShader;
 
     int _vertexArrayObject;
+    
+    Vector3[] _colors =
+    {
+        new(1f, 0f, 0f),
+        new(0f, 1f, 0f),
+        new(0f, 0f, 1f)
+    };
+    
+    float _time;
     
     #endregion
     
@@ -61,7 +71,27 @@ public class MainWindow(GameWindowSettings gameWindowSettings, NativeWindowSetti
         
         #region Temp
 
+        _time += (float)args.Time;
+        float t = _time * 3.14f;
+
+        Vector3[] colors =
+        {
+            new(MathF.Sin(t + 0f) * 0.5f + 0.5f,
+                MathF.Sin(t + 2f) * 0.5f + 0.5f,
+                MathF.Sin(t + 4f) * 0.5f + 0.5f),
+
+            new(MathF.Sin(t + 2f) * 0.5f + 0.5f,
+                MathF.Sin(t + 4f) * 0.5f + 0.5f,
+                MathF.Sin(t + 0f) * 0.5f + 0.5f),
+
+            new(MathF.Sin(t + 4f) * 0.5f + 0.5f,
+                MathF.Sin(t + 0f) * 0.5f + 0.5f,
+                MathF.Sin(t + 2f) * 0.5f + 0.5f),
+        };
+
         _tempShader.Use();
+        _tempShader.SetUniform("uColors", colors);
+
         GL.BindVertexArray(_vertexArrayObject);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         
