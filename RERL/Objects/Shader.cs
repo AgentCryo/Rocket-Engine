@@ -1,10 +1,7 @@
-using System.Drawing;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
-using OpenTK.Windowing.Common;
-using OpenTK.Windowing.Desktop;
 
-namespace RERL.Loaders;
+namespace RERL.Objects;
 
 public class Shader
 {
@@ -13,7 +10,7 @@ public class Shader
     
     public void Use() => GL.UseProgram(Handle);
     
-    public void AttachShader(string fragmentPath, string vertexPath)
+    public Shader AttachShader(string vertexPath, string fragmentPath)
     {
         string vertexSource = File.ReadAllText(vertexPath);
         string fragmentSource = File.ReadAllText(fragmentPath);
@@ -40,6 +37,8 @@ public class Shader
         GL.DetachShader(Handle, fragmentShader);
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
+        
+        return this;
     }
     
     void CheckCompile(int shader, string type)

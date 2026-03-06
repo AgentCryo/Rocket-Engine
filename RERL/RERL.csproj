@@ -41,4 +41,12 @@
       <Folder Include="Shaders\Base\" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="Shaders\**\*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Pack>true</Pack>
+            <PackagePath>contentFiles\any\any\Shaders\</PackagePath>
+        </Content>
+    </ItemGroup>
+
 </Project>
