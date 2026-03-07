@@ -4,23 +4,24 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
+using RERL.Loaders;
 using RERL.Objects;
 
 namespace RERL;
 
 public static class Main
 {
-    struct Vertex
+    public struct Vertex(Vector3 position, Vector3 normal, Vector2 uv)
     {
-        Vector3 _position;
-        Vector3 _normal;
-        Vector2 _textureCoord;
+        public Vector3 Position = position;
+        public Vector3 Normal = normal;
+        public Vector2 UV = uv;
     }
 
-    struct Mesh
+    public struct Mesh(Vertex[] vertices, int[] indices)
     {
-        Vertex[] _vertices;
-        int[] _indices;
+        public Vertex[] Vertices = vertices;
+        public int[] Indices = indices;
     }
     
     #region Temp
@@ -55,6 +56,14 @@ public static class Main
         var assembly = AppDomain.CurrentDomain .GetAssemblies() .FirstOrDefault(a => a.GetName().Name == "RERL");
 
         Console.WriteLine(assembly != null ? $"Library Found: {assembly.FullName}" : "Library not Found");
+
+        Mesh mesh = MeshLoader.ParseMesh(
+            "C:\\Users\\Colton\\RiderProjects\\Rocket-Engine-Rendering-Library\\RERL\\Models\\Cube.obj");
+        foreach (var vertex in mesh.Vertices) {
+            Console.WriteLine(vertex.Position);
+            Console.WriteLine(vertex.Normal);
+            Console.WriteLine(vertex.UV);
+        }
 
         GL.ClearColor(Color.FromArgb(255, 20,25,35));
         
