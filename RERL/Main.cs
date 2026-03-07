@@ -25,7 +25,7 @@ public static class Main
     
     #region Temp
 
-    static readonly float[] _vertices = {
+    static readonly float[] Vertices = {
         -0.5f, -0.5f, 0.0f, //Bottom-left vertex
         0.5f, -0.5f, 0.0f, //Bottom-right vertex
         0.0f,  0.5f, 0.0f  //Top vertex
@@ -33,7 +33,7 @@ public static class Main
 
     static int _vertexBufferObject;
 
-    static Shader _tempShader;
+    static Shader? _tempShader;
 
     static int _vertexArrayObject;
 
@@ -46,6 +46,8 @@ public static class Main
 
     static float _time;
     
+    static Matrix4 _model = Matrix4.Identity;
+    
     #endregion
     
     public static void Load()
@@ -55,15 +57,17 @@ public static class Main
         Console.WriteLine(assembly != null ? $"Library Found: {assembly.FullName}" : "Library not Found");
 
         GL.ClearColor(Color.FromArgb(255, 20,25,35));
-
+        
         #region Temp
+        
+        _model *= Matrix4.CreateRotationX(float.DegreesToRadians(-20));
 
         _vertexArrayObject = GL.GenVertexArray();
         GL.BindVertexArray(_vertexArrayObject);
         
         _vertexBufferObject = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BufferData(BufferTarget.ArrayBuffer, _vertices.Length * sizeof(float), _vertices, BufferUsageHint.StaticDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, Vertices.Length * sizeof(float), Vertices, BufferUsageHint.StaticDraw);
         
         GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
@@ -73,7 +77,7 @@ public static class Main
         #endregion
     }
     
-    public static void RenderFrame(GameWindow gameWindow, FrameEventArgs args)
+    public static void RenderFrame(GameWindow gameWindow, Camera camera, FrameEventArgs args)
     {
         GL.Clear(ClearBufferMask.ColorBufferBit);
         
@@ -96,9 +100,16 @@ public static class Main
                 MathF.Sin(t + 0f) * 0.5f + 0.5f,
                 MathF.Sin(t + 2f) * 0.5f + 0.5f),
         };
-
+        
+        camera.SetPosition(new Vector3(float.Sin(_time) * 10, float.Cos(_time) * 10, 10));
+        camera.SetRotation(new Vector3(0, 0, 0));
+        camera.UpdateViewMatrix();
+        
         _tempShader.Use();
         _tempShader.SetUniform("uColors", colors);
+        _tempShader.SetUniform("uModel", _model);
+        _tempShader.SetUniform("uView", camera.View);
+        _tempShader.SetUniform("uProjection", camera.Projection);
 
         GL.BindVertexArray(_vertexArrayObject);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
