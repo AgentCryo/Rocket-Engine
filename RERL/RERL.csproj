@@ -14,9 +14,9 @@
         <Description>Rocket Engine Rendering Library</Description>
         <PackageTags>graphics;opengl;opentk;rendering</PackageTags>
 
-        <RepositoryUrl>https://github.com/AgentCryo/Rocket-Engine-Rendering-Library</RepositoryUrl>
+        <RepositoryUrl>https://github.com/AgentCryo/Rocket-Engine/tree/master/RERL</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <PackageProjectUrl>https://github.com/AgentCryo/Rocket-Engine-Rendering-Library</PackageProjectUrl>
+        <PackageProjectUrl>https://github.com/AgentCryo/Rocket-Engine/tree/master/RERL</PackageProjectUrl>
 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageOutputPath>C:\LocalNuGet\RocketEngine</PackageOutputPath>
@@ -38,11 +38,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Shaders\Base\" />
-    </ItemGroup>
-
-    <ItemGroup>
         <Content Include="Shaders\**\*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Pack>true</Pack>
+            <PackagePath>contentFiles\any\any\Shaders\</PackagePath>
+        </Content>
+        <Content Include="Models\**\*">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
             <Pack>true</Pack>
             <PackagePath>contentFiles\any\any\Shaders\</PackagePath>

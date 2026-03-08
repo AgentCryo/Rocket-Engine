@@ -18,7 +18,7 @@ public static class MeshLoader
         List<Vector3> tempVertexPositions = new();
         List<Vector3> tempVertexNormals = new();
         List<Vector2> tempVertexUVs = new();
-        List<int> tempIndices = new();
+        List<uint> tempIndices = new();
         List<Main.Vertex> tempVertices = new();
 
         foreach (var line in File.ReadLines(objFilePath)) {
@@ -38,9 +38,9 @@ public static class MeshLoader
                 case "f":  //Face
                     for (int i = 2; i < tokens.Length - 0; i++)
                     {
-                        int i0 = AddVertex(tokens[1]);    
-                        int i1 = AddVertex(tokens[i]);    
-                        int i2 = AddVertex(tokens[i + 1]);
+                        uint i0 = AddVertex(tokens[1]);    
+                        uint i1 = AddVertex(tokens[i]);    
+                        uint i2 = AddVertex(tokens[i + 1]);
 
                         tempIndices.Add(i0);
                         tempIndices.Add(i1);
@@ -55,14 +55,14 @@ public static class MeshLoader
         
         return new Main.Mesh(tempVertices.ToArray(), tempIndices.ToArray());
 
-        int AddVertex(string faceToken)
+        uint AddVertex(string faceToken)
         {
             string[] vertex = faceToken.Split('/');
             tempVertices.Add(new Main.Vertex(
                 position: tempVertexPositions[ int.Parse(vertex[0]) - 1 ], 
                 uv:       tempVertexUVs.Count > 0 ? tempVertexUVs[ int.Parse(vertex[1]) - 1 ] : Vector2.Zero, 
                 normal:   tempVertexNormals.Count > 0 ? tempVertexNormals[ int.Parse(vertex[2]) - 1 ] : Vector3.Zero));
-            return tempVertices.Count - 1;
+            return (uint)(tempVertices.Count - 1);
         }
     }
 }

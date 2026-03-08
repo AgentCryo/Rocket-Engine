@@ -1,5 +1,6 @@
 using OpenTK.Mathematics;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -11,6 +12,7 @@ namespace RERL;
 
 public static class Main
 {
+    [StructLayout(LayoutKind.Sequential)]
     public struct Vertex(Vector3 position, Vector3 normal, Vector2 uv)
     {
         public Vector3 Position = position;
@@ -18,12 +20,28 @@ public static class Main
         public Vector2 UV = uv;
     }
 
-    public struct Mesh(Vertex[] vertices, int[] indices)
+    public struct Mesh(Vertex[] vertices, uint[] indices)
     {
         public Vertex[] Vertices = vertices;
-        public int[] Indices = indices;
+        public uint[] Indices = indices;
     }
-    
+
+    public struct RenderTransform
+    {
+        public Vector3 Position = default;
+        public Quaternion Rotation = Quaternion.Identity;
+        public Vector3 Scale = Vector3.One;
+
+        public RenderTransform(Quaternion rotation)
+        {
+            Rotation = rotation;
+        }
+        public RenderTransform()
+        {
+            
+        }
+    }
+
     #region Temp
 
     static readonly float[] Vertices = {
@@ -38,16 +56,11 @@ public static class Main
 
     static int _vertexArrayObject;
 
-    static Vector3[] _colors =
-    {
-        new(1f, 0f, 0f),
-        new(0f, 1f, 0f),
-        new(0f, 0f, 1f)
-    };
-
     static float _time;
     
     static Matrix4 _model = Matrix4.Identity;
+
+    static MeshRender _meshObject = new();
     
     #endregion
     
@@ -57,17 +70,16 @@ public static class Main
 
         Console.WriteLine(assembly != null ? $"Library Found: {assembly.FullName}" : "Library not Found");
 
-        Mesh mesh = MeshLoader.ParseMesh(
-            "C:\\Users\\Colton\\RiderProjects\\Rocket-Engine-Rendering-Library\\RERL\\Models\\Cube.obj");
-        foreach (var vertex in mesh.Vertices) {
-            Console.WriteLine(vertex.Position);
-            Console.WriteLine(vertex.Normal);
-            Console.WriteLine(vertex.UV);
-        }
-
         GL.ClearColor(Color.FromArgb(255, 20,25,35));
+        GL.Enable(EnableCap.DepthTest);
         
         #region Temp
+
+        Mesh mesh = MeshLoader.ParseMesh(
+            @".\Models\Cube.obj");
+
+        _meshObject.AttachMesh(mesh);
+        _meshObject.BuildMeshBuffers();
         
         _model *= Matrix4.CreateRotationX(float.DegreesToRadians(-20));
 
@@ -88,40 +100,25 @@ public static class Main
     
     public static void RenderFrame(GameWindow gameWindow, Camera camera, FrameEventArgs args)
     {
-        GL.Clear(ClearBufferMask.ColorBufferBit);
+        GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         
         #region Temp
 
         _time += (float)args.Time;
-        float t = _time * 3.14f;
-
-        Vector3[] colors =
-        {
-            new(MathF.Sin(t + 0f) * 0.5f + 0.5f,
-                MathF.Sin(t + 2f) * 0.5f + 0.5f,
-                MathF.Sin(t + 4f) * 0.5f + 0.5f),
-
-            new(MathF.Sin(t + 2f) * 0.5f + 0.5f,
-                MathF.Sin(t + 4f) * 0.5f + 0.5f,
-                MathF.Sin(t + 0f) * 0.5f + 0.5f),
-
-            new(MathF.Sin(t + 4f) * 0.5f + 0.5f,
-                MathF.Sin(t + 0f) * 0.5f + 0.5f,
-                MathF.Sin(t + 2f) * 0.5f + 0.5f),
-        };
         
-        camera.SetPosition(new Vector3(float.Sin(_time) * 10, float.Cos(_time) * 10, 10));
+        camera.SetPosition(new Vector3(float.Sin(_time/2) * 8, float.Cos(_time/2) * 5, 15));
         camera.SetRotation(new Vector3(0, 0, 0));
         camera.UpdateViewMatrix();
         
         _tempShader.Use();
-        _tempShader.SetUniform("uColors", colors);
         _tempShader.SetUniform("uModel", _model);
         _tempShader.SetUniform("uView", camera.View);
         _tempShader.SetUniform("uProjection", camera.Projection);
 
         GL.BindVertexArray(_vertexArrayObject);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        
+        _meshObject.Render(_tempShader, new RenderTransform(Quaternion.FromAxisAngle(new Vector3(0, 1, 0), _time)));
         
         #endregion
         

@@ -15,7 +15,7 @@ public class Game(GameWindowSettings gameWindowSettings, NativeWindowSettings na
     protected override void OnLoad()
     {
         base.OnLoad();
-        _camera.SetProjectionFovXInDegrees(90, Size.X / Size.Y, 0.1f, 100f);
+        _camera.SetProjectionFovXInDegrees(90, Size.X / (float)Size.Y, 0.1f, 100f);
         RERL.Main.Load();
     }
 
@@ -33,6 +33,6 @@ public class Game(GameWindowSettings gameWindowSettings, NativeWindowSettings na
     protected override void OnResize(ResizeEventArgs e)
     {
         base.OnResize(e);
-        _camera.SetProjectionFovXInDegrees(90, Size.X / Size.Y, 0.1f, 100f);
+        _camera.SetProjectionFovXInDegrees(90, Size.X / (float)Size.Y, 0.1f, 100f);
     }
 }
