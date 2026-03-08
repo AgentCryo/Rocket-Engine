@@ -9,10 +9,10 @@
         <IsPackable>true</IsPackable>
 
         <PackageId>RERL</PackageId>
-        <Version>0.0.1</Version>
+        <Version>0.1.0</Version>
         <Authors>AgentCryo</Authors>
         <Description>Rocket Engine Rendering Library</Description>
-        <PackageTags>graphics;opengl;opentk;rendering</PackageTags>
+        <PackageTags>graphics;opengl;opentk;rendering;library</PackageTags>
 
         <RepositoryUrl>https://github.com/AgentCryo/Rocket-Engine/tree/master/RERL</RepositoryUrl>
         <RepositoryType>git</RepositoryType>

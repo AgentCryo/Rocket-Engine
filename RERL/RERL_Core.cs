@@ -10,7 +10,7 @@ using RERL.Objects;
 
 namespace RERL;
 
-public static class Main
+public static class RERL_Core
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct Vertex(Vector3 position, Vector3 normal, Vector2 uv)
@@ -28,39 +28,38 @@ public static class Main
 
     public struct RenderTransform
     {
-        public Vector3 Position = default;
-        public Quaternion Rotation = Quaternion.Identity;
-        public Vector3 Scale = Vector3.One;
+        public Vector3 Position;
+        public Quaternion Rotation;
+        public Vector3 Scale;
+        
+        public static RenderTransform Identity =>
+            new RenderTransform(Vector3.Zero, Quaternion.Identity, Vector3.One);
+        
+        public RenderTransform(Vector3 position, Quaternion rotation, Vector3 scale)
+        {
+            Position = position;
+            Rotation = rotation;
+            Scale = scale;
+        }
+
+        public RenderTransform(Vector3 position)
+            : this(position, Quaternion.Identity, Vector3.One) { }
 
         public RenderTransform(Quaternion rotation)
-        {
-            Rotation = rotation;
-        }
-        public RenderTransform()
-        {
-            
-        }
+            : this(Vector3.Zero, rotation, Vector3.One) { }
+
+        public RenderTransform(Vector3 position, Quaternion rotation)
+            : this(position, rotation, Vector3.One) { }
     }
 
     #region Temp
-
-    static readonly float[] Vertices = {
-        -0.5f, -0.5f, 0.0f, //Bottom-left vertex
-        0.5f, -0.5f, 0.0f, //Bottom-right vertex
-        0.0f,  0.5f, 0.0f  //Top vertex
-    };
-
-    static int _vertexBufferObject;
-
+    
     static Shader? _tempShader;
 
-    static int _vertexArrayObject;
-
     static float _time;
-    
-    static Matrix4 _model = Matrix4.Identity;
 
     static MeshRender _meshObject = new();
+    static MeshRender _icosahedron = new();
     
     #endregion
     
@@ -81,17 +80,11 @@ public static class Main
         _meshObject.AttachMesh(mesh);
         _meshObject.BuildMeshBuffers();
         
-        _model *= Matrix4.CreateRotationX(float.DegreesToRadians(-20));
-
-        _vertexArrayObject = GL.GenVertexArray();
-        GL.BindVertexArray(_vertexArrayObject);
+        mesh = MeshLoader.ParseMesh(
+            @".\Models\Icosahedron.obj");
         
-        _vertexBufferObject = GL.GenBuffer();
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BufferData(BufferTarget.ArrayBuffer, Vertices.Length * sizeof(float), Vertices, BufferUsageHint.StaticDraw);
-        
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
-        GL.EnableVertexAttribArray(0);
+        _icosahedron.AttachMesh(mesh);
+        _icosahedron.BuildMeshBuffers();
 
         _tempShader = new Shader().AttachShader("./Shaders/Default/default.vert", "./Shaders/Default/default.frag");
 
@@ -111,14 +104,11 @@ public static class Main
         camera.UpdateViewMatrix();
         
         _tempShader.Use();
-        _tempShader.SetUniform("uModel", _model);
         _tempShader.SetUniform("uView", camera.View);
         _tempShader.SetUniform("uProjection", camera.Projection);
-
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         
         _meshObject.Render(_tempShader, new RenderTransform(Quaternion.FromAxisAngle(new Vector3(0, 1, 0), _time)));
+        _icosahedron.Render(_tempShader, new RenderTransform(new Vector3(3, 0, 0), Quaternion.FromAxisAngle(new Vector3(0, 1, 0), _time)));
         
         #endregion
         

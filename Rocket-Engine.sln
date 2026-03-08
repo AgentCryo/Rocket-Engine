@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RERL", "RERL\RERL.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dev", "Dev\Dev.csproj", "{4894F869-ACEF-459B-98DC-4CCA02CD65A1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RCS", "RCS\RCS.csproj", "{55269103-BCA3-4D43-9832-D1203CAC10E6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{4894F869-ACEF-459B-98DC-4CCA02CD65A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4894F869-ACEF-459B-98DC-4CCA02CD65A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4894F869-ACEF-459B-98DC-4CCA02CD65A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55269103-BCA3-4D43-9832-D1203CAC10E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55269103-BCA3-4D43-9832-D1203CAC10E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55269103-BCA3-4D43-9832-D1203CAC10E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55269103-BCA3-4D43-9832-D1203CAC10E6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

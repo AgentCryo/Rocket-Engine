@@ -6,11 +6,11 @@ namespace RERL.Objects;
 
 public class MeshRender
 {
-    Main.Mesh? _mesh;
+    RERL_Core.Mesh? _mesh;
     int _vao = -1, _vbo = -1, _ibo = -1;
     bool _hasUpdatedMeshBuffers = false;
 
-    public void AttachMesh(Main.Mesh mesh)
+    public void AttachMesh(RERL_Core.Mesh mesh)
     {
         _mesh = mesh;
         _hasUpdatedMeshBuffers = false;
@@ -28,12 +28,12 @@ public class MeshRender
         GL.BindVertexArray(_vao);
         
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, ((Main.Mesh)_mesh).Vertices.Length * Marshal.SizeOf<Main.Vertex>(), ((Main.Mesh)_mesh).Vertices, BufferUsageHint.StaticDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, ((RERL_Core.Mesh)_mesh).Vertices.Length * Marshal.SizeOf<RERL_Core.Vertex>(), ((RERL_Core.Mesh)_mesh).Vertices, BufferUsageHint.StaticDraw);
 
         GL.BindBuffer(BufferTarget.ElementArrayBuffer, _ibo);
-        GL.BufferData(BufferTarget.ElementArrayBuffer, ((Main.Mesh)_mesh).Indices.Length * sizeof(uint), ((Main.Mesh)_mesh).Indices.ToArray(), BufferUsageHint.StaticDraw);
+        GL.BufferData(BufferTarget.ElementArrayBuffer, ((RERL_Core.Mesh)_mesh).Indices.Length * sizeof(uint), ((RERL_Core.Mesh)_mesh).Indices.ToArray(), BufferUsageHint.StaticDraw);
         
-        int stride = Marshal.SizeOf<Main.Vertex>();
+        int stride = Marshal.SizeOf<RERL_Core.Vertex>();
 
         GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, stride, 0);
         GL.EnableVertexAttribArray(0);
@@ -51,7 +51,7 @@ public class MeshRender
     /// <summary>
     /// The shader must be bound with <see cref="Shader.Use"/> before calling this
     /// </summary>
-    public void Render(Shader shader, Main.RenderTransform transform, int instanceCount = 1)
+    public void Render(Shader shader, RERL_Core.RenderTransform transform, int instanceCount = 1)
     {
         if (_mesh == null) throw new Exception("ERR: Mesh is null.");
         if(!_hasUpdatedMeshBuffers) Console.WriteLine("WRN: Rendering an object with outdated mesh buffers.");
@@ -64,7 +64,7 @@ public class MeshRender
         shader.SetUniform("uModel", model);
 
         GL.BindVertexArray(_vao);
-        GL.DrawElementsInstanced(PrimitiveType.Triangles,  ((Main.Mesh)_mesh).Indices.Length, DrawElementsType.UnsignedInt, 0, instanceCount);
+        GL.DrawElementsInstanced(PrimitiveType.Triangles,  ((RERL_Core.Mesh)_mesh).Indices.Length, DrawElementsType.UnsignedInt, 0, instanceCount);
     }
     
     public void DisposeBuffers()

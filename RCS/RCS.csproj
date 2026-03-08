@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <RootNamespace>RCS</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>true</IsPackable>
+
+        <PackageId>RCS</PackageId>
+        <Version>0.0.1</Version>
+        <Authors>AgentCryo</Authors>
+        <Description>Rocket Control System: Rocket Engine's ECS.</Description>
+        <PackageTags>ecs;entity;entity-component-system;component;library</PackageTags>
+
+        <RepositoryUrl>https://github.com/AgentCryo/Rocket-Engine/tree/master/RCS</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageProjectUrl>https://github.com/AgentCryo/Rocket-Engine/tree/master/RCS</PackageProjectUrl>
+
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageOutputPath>C:\LocalNuGet\RocketEngine</PackageOutputPath>
+        <PackOutputPath>C:\LocalNuGet\RocketEngine</PackOutputPath>
+    </PropertyGroup>
+</Project>
