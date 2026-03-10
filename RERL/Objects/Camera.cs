@@ -10,8 +10,8 @@ public class Camera
     Matrix4 _view;
     Matrix4 _projection;
 
-    public Matrix4 Projection => _projection;
-    public Matrix4 View => _view;
+    public Matrix4 GetProjection() => _projection;
+    public Matrix4 GetView() => _view;
 
     public void SetProjectionFovYInDegrees(float fovY, float aspect, float near, float far)
     {

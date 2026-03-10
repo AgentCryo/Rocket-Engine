@@ -4,9 +4,10 @@ using OpenTK.Mathematics;
 
 namespace RERL.Objects;
 
-public class MeshRender
+public class MeshRenderer
 {
     RERL_Core.Mesh? _mesh;
+    Shader _shader;
     int _vao = -1, _vbo = -1, _ibo = -1;
     bool _hasUpdatedMeshBuffers = false;
 
@@ -15,7 +16,10 @@ public class MeshRender
         _mesh = mesh;
         _hasUpdatedMeshBuffers = false;
     }
-    
+
+    public void AttachShader(Shader shader) => _shader = shader;
+    public Shader GetShader() => _shader;
+
     public bool BuildMeshBuffers(bool silence = false)
     {
         if (_mesh == null)
@@ -48,20 +52,18 @@ public class MeshRender
         return true;
     }
     
-    /// <summary>
-    /// The shader must be bound with <see cref="Shader.Use"/> before calling this
-    /// </summary>
-    public void Render(Shader shader, RERL_Core.RenderTransform transform, int instanceCount = 1)
+    public void Render(RERL_Core.RenderTransform transform, int instanceCount = 1)
     {
         if (_mesh == null) throw new Exception("ERR: Mesh is null.");
+        if (_shader == null) throw new Exception("ERR: Shader is null.");
         if(!_hasUpdatedMeshBuffers) Console.WriteLine("WRN: Rendering an object with outdated mesh buffers.");
         
-        Matrix4 model =
+        var model =
             Matrix4.CreateScale(transform.Scale) *
             Matrix4.CreateFromQuaternion(transform.Rotation) *
             Matrix4.CreateTranslation(transform.Position);
         
-        shader.SetUniform("uModel", model);
+        _shader.ApplyUniform("uModel", model);
 
         GL.BindVertexArray(_vao);
         GL.DrawElementsInstanced(PrimitiveType.Triangles,  ((RERL_Core.Mesh)_mesh).Indices.Length, DrawElementsType.UnsignedInt, 0, instanceCount);

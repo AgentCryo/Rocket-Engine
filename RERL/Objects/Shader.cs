@@ -7,14 +7,16 @@ public class Shader
 {
     int Handle { get; set; }
     readonly Dictionary<string, int> _uniformCache = new();
-    
+    readonly Dictionary<string, Func<object?>> _autoUniforms = new();
+
     public void Use() => GL.UseProgram(Handle);
-    
+    public int GetHandle() => Handle;
+
     public Shader AttachShader(string vertexPath, string fragmentPath)
     {
         string vertexSource = File.ReadAllText(vertexPath);
         string fragmentSource = File.ReadAllText(fragmentPath);
-        
+
         int vertexShader = GL.CreateShader(ShaderType.VertexShader);
         if (vertexShader == -1) throw new Exception("ERR: Vertex Shader could not be created!");
         GL.ShaderSource(vertexShader, vertexSource);
@@ -37,31 +39,29 @@ public class Shader
         GL.DetachShader(Handle, fragmentShader);
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
-        
+
         return this;
     }
-    
+
     void CheckCompile(int shader, string type)
     {
         GL.GetShader(shader, ShaderParameter.CompileStatus, out int status);
-        if (status == 0)
-        {
+        if (status == 0) {
             string info = GL.GetShaderInfoLog(shader);
             throw new Exception($"{type} SHADER COMPILATION ERROR:\n{info}");
         }
     }
-    
-    
+
+
     void CheckLink(int program)
     {
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int status);
-        if (status == 0)
-        {
+        if (status == 0) {
             string info = GL.GetProgramInfoLog(program);
             throw new Exception($"SHADER LINKING ERROR:\n{info}");
         }
     }
-    
+
     int GetUniformLocation(string name)
     {
         if (_uniformCache.TryGetValue(name, out int loc))
@@ -80,13 +80,13 @@ public class Shader
     /// <param name="value">The value to assign to the uniform.</param>
     /// <param name="silence">If true, missing uniforms won't throw.</param>
     /// <returns>True if the uniform was set successfully.</returns>
-    public bool SetUniform(string name, object? value, bool silence = false)
+    public bool ApplyUniform(string name, object? value, bool silence = false)
     {
         int location = GetUniformLocation(name);
 
         if (location == -1 && !silence)
             throw new Exception($"ERR: Uniform '{name}' not found.");
-        if(location == -1 && silence) return false;
+        if (location == -1 && silence) return false;
 
         switch (value) {
             case float f:
@@ -103,7 +103,7 @@ public class Shader
 
             case Vector3 v3:
                 GL.Uniform3(location, v3); break;
-            
+
             case Vector3[] v3Arr:
                 if (v3Arr.Length == 0)
                     return silence ? false : throw new Exception($"ERR: Cannot set empty Vector3[] uniform '{name}'.");
@@ -116,11 +116,32 @@ public class Shader
 
             case Matrix4 m4:
                 GL.UniformMatrix4(location, false, ref m4); break;
-            
+
             default:
-                return silence ? false : throw new Exception($"ERR: Unsupported uniform type '{value?.GetType()}' for '{name}'.");
+                return silence
+                    ? false
+                    : throw new Exception($"ERR: Unsupported uniform type '{value?.GetType()}' for '{name}'.");
         }
 
         return true;
+    }
+
+    public bool AddAutoUniform(string name, Func<object?> getter, bool silence = false)
+    {
+        int location = GetUniformLocation(name);
+
+        if (location == -1 && !silence)
+            throw new Exception($"ERR: Uniform '{name}' not found.");
+        if (location == -1 && silence) return false;
+        
+        _autoUniforms[name] = getter;
+        return true;
+    }
+
+    public void ApplyAutoUniforms()
+    {
+        foreach (KeyValuePair<string, Func<object?>> kvp in _autoUniforms) {
+            ApplyUniform(kvp.Key, kvp.Value?.Invoke());
+        }
     }
 }

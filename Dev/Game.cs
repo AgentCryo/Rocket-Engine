@@ -29,7 +29,7 @@ public class Game(GameWindowSettings gameWindowSettings, NativeWindowSettings na
         //_meshes.Add("Sphere", MeshLoader.ParseMesh(MeshLoader.UVSphere));
         //_meshes.Add("Cube", MeshLoader.ParseMesh(MeshLoader.Cube));
         
-        RERL_Core.Load();
+        RERL_Core.Load(_camera);
     }
 
     protected override void OnUpdateFrame(FrameEventArgs args)
