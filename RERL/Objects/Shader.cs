@@ -12,6 +12,13 @@ public class Shader
     public void Use() => GL.UseProgram(Handle);
     public int GetHandle() => Handle;
 
+    /// <summary>
+    /// Loads, compiles, and links a vertex and fragment shader into this shader.
+    /// Any previous program stored in this instance is replaced.
+    /// </summary>
+    /// <param name="vertexPath">Path to the vertex shader source file.</param>
+    /// <param name="fragmentPath">Path to the fragment shader source file.</param>
+    /// <returns>The current <see cref="Shader"/> instance for chaining.</returns>
     public Shader AttachShader(string vertexPath, string fragmentPath)
     {
         string vertexSource = File.ReadAllText(vertexPath);
@@ -73,13 +80,13 @@ public class Shader
     }
 
     /// <summary>
-    /// Sets a uniform value on the shader program.
-    /// The shader must be bound with <see cref="Use"/> before calling this
+    /// Assigns a value to a uniform variable in the shader program.
+    /// The shader must be bound using <see cref="Use"/> before calling this.
     /// </summary>
     /// <param name="name">The uniform name in the GLSL shader.</param>
-    /// <param name="value">The value to assign to the uniform.</param>
-    /// <param name="silence">If true, missing uniforms won't throw.</param>
-    /// <returns>True if the uniform was set successfully.</returns>
+    /// <param name="value">The value to upload to the GPU.</param>
+    /// <param name="silence">If true, missing uniforms are ignored instead of throwing.</param>
+    /// <returns>True if the uniform was successfully applied.</returns>
     public bool ApplyUniform(string name, object? value, bool silence = false)
     {
         int location = GetUniformLocation(name);
@@ -126,6 +133,15 @@ public class Shader
         return true;
     }
 
+    /// <summary>
+    /// Registers a uniform whose value is supplied automatically each frame.
+    /// The provided getter function is invoked whenever <see cref="ApplyAutoUniforms"/>
+    /// is called.
+    /// </summary>
+    /// <param name="name">The uniform name in the GLSL shader.</param>
+    /// <param name="getter">A function that returns the value to assign.</param>
+    /// <param name="silence">If true, missing uniforms are ignored.</param>
+    /// <returns>True if the uniform was registered successfully.</returns>
     public bool AddAutoUniform(string name, Func<object?> getter, bool silence = false)
     {
         int location = GetUniformLocation(name);
@@ -138,6 +154,10 @@ public class Shader
         return true;
     }
 
+    /// <summary>
+    /// Applies all automatically registered uniforms by invoking their getter
+    /// functions and uploading the resulting values to the GPU.
+    /// </summary>
     public void ApplyAutoUniforms()
     {
         foreach (KeyValuePair<string, Func<object?>> kvp in _autoUniforms) {

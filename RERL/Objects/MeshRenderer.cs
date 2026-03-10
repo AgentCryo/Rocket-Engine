@@ -20,6 +20,9 @@ public class MeshRenderer
     public void AttachShader(Shader shader) => _shader = shader;
     public Shader GetShader() => _shader;
 
+    /// <summary>
+    /// Needs to be called after adding or changing the mesh.
+    /// </summary>
     public bool BuildMeshBuffers(bool silence = false)
     {
         if (_mesh == null)
