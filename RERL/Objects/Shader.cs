@@ -142,7 +142,7 @@ public class Shader
     /// <param name="getter">A function that returns the value to assign.</param>
     /// <param name="silence">If true, missing uniforms are ignored.</param>
     /// <returns>True if the uniform was registered successfully.</returns>
-    public bool AddAutoUniform(string name, Func<object?> getter, bool silence = false)
+    public bool RegisterAutoUniform(string name, Func<object?> getter, bool silence = false)
     {
         int location = GetUniformLocation(name);
 

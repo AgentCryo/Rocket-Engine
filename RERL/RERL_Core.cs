@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using OpenTK.Mathematics;
 using System.Drawing;
 using System.Runtime.InteropServices;
@@ -5,6 +6,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using RERL.Loaders;
 using RERL.Objects;
 
@@ -12,6 +14,7 @@ namespace RERL;
 
 public static class RERL_Core
 {
+    
     [StructLayout(LayoutKind.Sequential)]
     public struct Vertex(Vector3 position, Vector3 normal, Vector2 uv)
     {
@@ -45,7 +48,70 @@ public static class RERL_Core
             : this(position, rotation, Vector3.One) { }
     }
 
-    #region Temp
+    public struct GBuffer
+    {
+        public int Color, Normal, Depth;
+        public int FBO;
+        public int GetColor() => Color;
+        public int GetNormal() => Normal;
+        public int GetDepth() => Depth;
+        public int GetFBO() => FBO;
+        
+        public GBuffer(Vector2i screenSize)
+        {
+            FBO = GL.GenFramebuffer();
+            
+            Color = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, Color);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
+                screenSize.X, screenSize.Y, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            SetupTexture2D(Color);
+
+            Normal = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, Normal);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f,
+                screenSize.X, screenSize.Y, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            SetupTexture2D(Normal);
+
+            Depth = GL.GenTexture();
+            GL.BindTexture(TextureTarget.Texture2D, Depth);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent,
+                screenSize.X, screenSize.Y, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+            SetupTexture2D(Depth);
+            
+            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+                throw new Exception($"GBuffer incomplete: {status}");
+        }
+        
+        void SetupTexture2D(int tex)
+        {
+            GL.BindTexture(TextureTarget.Texture2D, tex);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        }
+
+        public void Clear()
+        {
+            float[] clear = new float[4];
+            GL.GetFloat(GetPName.ColorClearValue, clear);
+
+            // Clear COLOR attachment 0 (albedo)
+            GL.ClearBuffer(ClearBuffer.Color, 0, clear);
+
+            // Clear COLOR attachment 1 (normal)
+            GL.ClearBuffer(ClearBuffer.Color, 1, clear);
+
+            // Clear DEPTH attachment
+            float depthClear = 1f;
+            GL.ClearBuffer(ClearBuffer.Depth, 0, ref depthClear);
+        }
+
+    }
+
+    #region Temp    
     
     static Shader? _tempShader;
 
@@ -55,12 +121,17 @@ public static class RERL_Core
     static MeshRenderer _icosahedron = new();
     static MeshRenderer _sphere = new();
     
-    #endregion
+    static PostProcess _postProcess = new();
     
+    #endregion
+
+    static int _postProcessingQuad_VAO;
+    static GBuffer _geometryFrame;
+    static List<PostProcess> _postProcesses = [];
     static Dictionary<int, List<MeshRenderer>> _shaderBatchRendering = new();
     static List<MeshRenderer> _renderables = [];
     
-    public static void Load(Camera camera)
+    public static void Load(Camera camera, GameWindow window)
     {
         var assembly = AppDomain.CurrentDomain .GetAssemblies() .FirstOrDefault(a => a.GetName().Name == "RERL");
 
@@ -72,17 +143,17 @@ public static class RERL_Core
         #region Temp
 
         _tempShader = new Shader().AttachShader("./Shaders/Default/default.vert", "./Shaders/Default/default.frag");
-        _tempShader.AddAutoUniform("uView", () => camera.GetView());
-        _tempShader.AddAutoUniform("uProjection", () => camera.GetProjection());
+        _tempShader.RegisterAutoUniform("uView", () => camera.GetView());
+        _tempShader.RegisterAutoUniform("uProjection", () => camera.GetProjection());
         
         Mesh mesh = MeshLoader.ParseMesh(
-            @".\Models\Cube.obj");
+            @"./Models/Cube.obj");
         _meshObject.AttachMesh(mesh);
         _meshObject.AttachShader(_tempShader);
         _meshObject.BuildMeshBuffers();
         
         mesh = MeshLoader.ParseMesh(
-            @".\Models\Icosahedron.obj");
+            @"./Models/Icosahedron.obj");
         _icosahedron.AttachMesh(mesh);
         _icosahedron.AttachShader(_tempShader);
         _icosahedron.BuildMeshBuffers();
@@ -96,6 +167,20 @@ public static class RERL_Core
         _renderables.Add(_icosahedron);
         _renderables.Add(_sphere);
         PopulateShaderBatchRendering();
+
+        _postProcess = new PostProcess().AttachPostProcessShader(@"./Shaders/DefaultPostProcess/defaultPostProcess.frag", window);
+        _postProcesses.Add(_postProcess);
+        
+        _geometryFrame = new GBuffer(window.Size);
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _geometryFrame.GetFBO());
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, _geometryFrame.Color, 0);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, _geometryFrame.Normal, 0);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, _geometryFrame.Depth, 0);
+        
+        DrawBuffersEnum[] drawBuffers = [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1];
+        GL.DrawBuffers(drawBuffers.Length, drawBuffers);
+        
+        _postProcessingQuad_VAO = GL.GenVertexArray();
         
         #endregion
     }
@@ -104,6 +189,8 @@ public static class RERL_Core
     {
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _geometryFrame.GetFBO());
+        _geometryFrame.Clear();
         //Render all meshes grouped by shader to minimize shader switches.
         foreach (var kpv in _shaderBatchRendering) {
             //int shaderHandle = kpv.Key;
@@ -119,9 +206,14 @@ public static class RERL_Core
             }
         }
         
+        GBuffer input = _geometryFrame;
+        for (int p = 0; p < _postProcesses.Count; p++) {
+            input = _postProcesses[p].RenderPostProcess(input, _postProcessingQuad_VAO, (p == _postProcesses.Count - 1));
+        }
+        
         gameWindow.SwapBuffers();
     }
-
+    
     public static void PopulateShaderBatchRendering()
     {
         foreach (var renderable in _renderables) {
