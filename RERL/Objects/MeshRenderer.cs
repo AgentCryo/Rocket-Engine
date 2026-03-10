@@ -7,21 +7,30 @@ namespace RERL.Objects;
 public class MeshRenderer
 {
     RERL_Core.Mesh? _mesh;
-    Shader _shader;
+    Shader? _shader;
     int _vao = -1, _vbo = -1, _ibo = -1;
-    bool _hasUpdatedMeshBuffers = false;
+    bool _buffersDirty = false;
 
-    public void AttachMesh(RERL_Core.Mesh mesh)
+    public MeshRenderer AttachMesh(RERL_Core.Mesh mesh)
     {
         _mesh = mesh;
-        _hasUpdatedMeshBuffers = false;
+        _buffersDirty = false;
+        return this;
     }
 
-    public void AttachShader(Shader shader) => _shader = shader;
-    public Shader GetShader() => _shader;
+    public MeshRenderer AttachShader(Shader shader, bool buildMeshBuffers = true)
+    {
+        _shader = shader;
+        if (buildMeshBuffers) BuildMeshBuffers();
+        return this;
+    }
+    public RERL_Core.Mesh? GetMesh() => _mesh!;
+    public Shader? GetShader() => _shader;
+
 
     /// <summary>
-    /// Needs to be called after adding or changing the mesh.
+    /// The mesh will not update if this is not called.
+    /// In <see cref="AttachMesh"/> has a boolean that allows this to be automatically called, unless explicitly told not to.
     /// </summary>
     public bool BuildMeshBuffers(bool silence = false)
     {
@@ -51,7 +60,7 @@ public class MeshRenderer
         GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, stride, 6 * sizeof(float));
         GL.EnableVertexAttribArray(2);
         
-        _hasUpdatedMeshBuffers = true;
+        _buffersDirty = true;
         return true;
     }
     
@@ -59,7 +68,7 @@ public class MeshRenderer
     {
         if (_mesh == null) throw new Exception("ERR: Mesh is null.");
         if (_shader == null) throw new Exception("ERR: Shader is null.");
-        if(!_hasUpdatedMeshBuffers) Console.WriteLine("WRN: Rendering an object with outdated mesh buffers.");
+        if(!_buffersDirty) Console.WriteLine("WRN: Rendering an object with outdated mesh buffers.");
         
         var model =
             Matrix4.CreateScale(transform.Scale) *

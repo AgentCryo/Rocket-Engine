@@ -16,20 +16,28 @@ public class Game(GameWindowSettings gameWindowSettings, NativeWindowSettings na
 {
     Camera _camera = new Camera();
     CameraController _cameraController = new CameraController();
-    Dictionary<string, RERL_Core.Mesh> _meshes = new();
     
+    static MeshRenderer _cube;
+    static MeshRenderer _icosahedron;
+    static MeshRenderer _sphere;
+
     protected override void OnLoad()
     {
         base.OnLoad();
         _camera.SetProjectionFovXInDegrees(100, Size.X / (float)Size.Y, 0.1f, 100f);
         CursorState = CursorState.Grabbed;
         _cameraController.InitializeCameraController(_camera, KeyboardState, MouseState, this);
-
-        //_meshes.Add("Icosahedron", MeshLoader.ParseMesh(MeshLoader.Icosahedron));
-        //_meshes.Add("Sphere", MeshLoader.ParseMesh(MeshLoader.UVSphere));
-        //_meshes.Add("Cube", MeshLoader.ParseMesh(MeshLoader.Cube));
         
         RERL_Core.Load(_camera, this);
+
+        _cube = new MeshRenderer().AttachMesh(MeshLoader.CubeMesh).AttachShader(RERL_Core.GetDefaultShader());
+        RERL_Core.RegisterRenderable(_cube);
+
+        _icosahedron = new MeshRenderer().AttachMesh(MeshLoader.IcosahedronMesh).AttachShader(RERL_Core.GetDefaultShader());
+        RERL_Core.RegisterRenderable(_icosahedron);
+
+        _sphere = new MeshRenderer().AttachMesh(MeshLoader.UVSphereMesh).AttachShader(RERL_Core.GetDefaultShader());
+        RERL_Core.RegisterRenderable(_sphere);
     }
 
     protected override void OnUpdateFrame(FrameEventArgs args)

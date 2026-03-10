@@ -113,17 +113,19 @@ public static class RERL_Core
 
     #region Temp    
     
-    static Shader? _tempShader;
 
     static float _time;
 
-    static MeshRenderer _meshObject = new();
+    static MeshRenderer _cube = new();
     static MeshRenderer _icosahedron = new();
     static MeshRenderer _sphere = new();
     
     static PostProcess _postProcess = new();
     
     #endregion
+    
+    static Shader? _defaultShader;
+    public static Shader GetDefaultShader() => _defaultShader!;
 
     static int _postProcessingQuad_VAO;
     static GBuffer _geometryFrame;
@@ -131,6 +133,9 @@ public static class RERL_Core
     static Dictionary<int, List<MeshRenderer>> _shaderBatchRendering = new();
     static List<MeshRenderer> _renderables = [];
     
+    /// <summary>
+    /// Call this before adding any renderables.
+    /// </summary>
     public static void Load(Camera camera, GameWindow window)
     {
         var assembly = AppDomain.CurrentDomain .GetAssemblies() .FirstOrDefault(a => a.GetName().Name == "RERL");
@@ -140,37 +145,10 @@ public static class RERL_Core
         GL.ClearColor(Color.FromArgb(255, 20,25,35));
         GL.Enable(EnableCap.DepthTest);
         
-        #region Temp
+        _defaultShader = new Shader().AttachShader("./Shaders/Default/default.vert", "./Shaders/Default/default.frag");
+        _defaultShader.RegisterAutoUniform("uView", () => camera.GetView());
+        _defaultShader.RegisterAutoUniform("uProjection", () => camera.GetProjection());
 
-        _tempShader = new Shader().AttachShader("./Shaders/Default/default.vert", "./Shaders/Default/default.frag");
-        _tempShader.RegisterAutoUniform("uView", () => camera.GetView());
-        _tempShader.RegisterAutoUniform("uProjection", () => camera.GetProjection());
-        
-        Mesh mesh = MeshLoader.ParseMesh(
-            @"./Models/Cube.obj");
-        _meshObject.AttachMesh(mesh);
-        _meshObject.AttachShader(_tempShader);
-        _meshObject.BuildMeshBuffers();
-        
-        mesh = MeshLoader.ParseMesh(
-            @"./Models/Icosahedron.obj");
-        _icosahedron.AttachMesh(mesh);
-        _icosahedron.AttachShader(_tempShader);
-        _icosahedron.BuildMeshBuffers();
-
-        mesh = MeshLoader.ParseMesh(MeshLoader.UVSphere);
-        _sphere.AttachMesh(mesh);
-        _sphere.AttachShader(_tempShader);
-        _sphere.BuildMeshBuffers();
-        
-        _renderables.Add(_meshObject);
-        _renderables.Add(_icosahedron);
-        _renderables.Add(_sphere);
-        PopulateShaderBatchRendering();
-
-        _postProcess = new PostProcess().AttachPostProcessShader(@"./Shaders/DefaultPostProcess/defaultPostProcess.frag", window);
-        _postProcesses.Add(_postProcess);
-        
         _geometryFrame = new GBuffer(window.Size);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, _geometryFrame.GetFBO());
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, _geometryFrame.Color, 0);
@@ -181,16 +159,15 @@ public static class RERL_Core
         GL.DrawBuffers(drawBuffers.Length, drawBuffers);
         
         _postProcessingQuad_VAO = GL.GenVertexArray();
-        
-        #endregion
     }
     
     public static void RenderFrame(GameWindow gameWindow, Camera camera, FrameEventArgs args)
     {
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _geometryFrame.GetFBO());
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, _postProcesses.Count != 0 ? _geometryFrame.GetFBO() : 0);
         _geometryFrame.Clear();
+        
         //Render all meshes grouped by shader to minimize shader switches.
         foreach (var kpv in _shaderBatchRendering) {
             //int shaderHandle = kpv.Key;
@@ -206,26 +183,46 @@ public static class RERL_Core
             }
         }
         
-        GBuffer input = _geometryFrame;
-        for (int p = 0; p < _postProcesses.Count; p++) {
-            input = _postProcesses[p].RenderPostProcess(input, _postProcessingQuad_VAO, (p == _postProcesses.Count - 1));
+        if (_postProcesses.Count != 0) {
+            GBuffer input = _geometryFrame;
+            for (int p = 0; p < _postProcesses.Count; p++) {
+                input = _postProcesses[p].RenderPostProcess(input, _postProcessingQuad_VAO, (p == _postProcesses.Count - 1));
+            }
         }
         
         gameWindow.SwapBuffers();
     }
     
-    public static void PopulateShaderBatchRendering()
+    static void RegisterToShaderBatch(MeshRenderer renderable)
     {
-        foreach (var renderable in _renderables) {
-            int handle = renderable.GetShader().GetHandle();
+        int handle = renderable.GetShader().GetHandle();
+        if (!_shaderBatchRendering.TryGetValue(handle, out var list))
+        {
+            list = [];
+            _shaderBatchRendering[handle] = list;
+        }
+        list.Add(renderable);
+    }
 
-            if (!_shaderBatchRendering.TryGetValue(handle, out List<MeshRenderer>? list))
-            {
-                list = [];
-                _shaderBatchRendering[handle] = list;
-            }
+    public static void RegisterRenderable(MeshRenderer renderable)
+    {
+        _renderables.Add(renderable);
+        RegisterToShaderBatch(renderable);
+    }
 
-            list.Add(renderable);
+    public static void UnregisterRenderable(MeshRenderer renderable)
+    {
+        _renderables.Remove(renderable);
+
+        int handle = renderable.GetShader().GetHandle();
+        if (_shaderBatchRendering.TryGetValue(handle, out var list))
+        {
+            list.Remove(renderable);
+            if (list.Count == 0)
+                _shaderBatchRendering.Remove(handle);
         }
     }
+
+    public static void RegisterPostProcess(PostProcess postProcess) => _postProcesses.Add(postProcess);
+    public static void UnregisterPostProcess(PostProcess postProcess) => _postProcesses.Remove(postProcess);
 }

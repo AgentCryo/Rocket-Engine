@@ -7,6 +7,11 @@ public static class MeshLoader
     public const string Cube = @"./Models/Cube.obj";
     public const string Icosahedron = @"./Models/Icosahedron.obj";
     public const string UVSphere = @"./Models/UVSphere.obj";
+
+    public static RERL_Core.Mesh CubeMesh => ParseMesh(Cube);
+    public static RERL_Core.Mesh IcosahedronMesh => ParseMesh(Icosahedron);
+    public static RERL_Core.Mesh UVSphereMesh => ParseMesh(UVSphere);
+    
     public static RERL_Core.Mesh ParseMesh(string filename)
     {
         if (filename.EndsWith(".obj")) {
