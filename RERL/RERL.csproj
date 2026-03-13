@@ -8,7 +8,7 @@
         <Nullable>enable</Nullable>
         <IsPackable>true</IsPackable>
 
-        <PackageId>RERL</PackageId>
+        <PackageId>RocketEngine.RERL</PackageId>
         <Version>0.1.0</Version>
         <Authors>AgentCryo</Authors>
         <Description>Rocket Engine Rendering Library</Description>
@@ -21,6 +21,9 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageOutputPath>C:\LocalNuGet\RocketEngine</PackageOutputPath>
         <PackOutputPath>C:\LocalNuGet\RocketEngine</PackOutputPath>
+        
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -58,5 +61,16 @@
             <Pack>true</Pack>
             <PackagePath>contentFiles\any\any\Models\</PackagePath>
         </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\LICENSE">
+            <Pack>true</Pack>
+            <PackagePath></PackagePath>
+        </None>
+        <None Include="..\README.md">
+            <Pack>true</Pack>
+            <PackagePath></PackagePath>
+        </None>
     </ItemGroup>
 </Project>

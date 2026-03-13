@@ -43,7 +43,7 @@ float mergerSponge(in vec3 p) {
     for (int m = 0; m < 3; m++)
     {
         vec3 a = mod(p*s, 2.0)-1.0;
-        s *=3.0;
+        s *= 3.0;
         vec3 r = abs(2.0 - 3.0*abs(a));
         float da = max(r.x,r.y);
         float db = max(r.y,r.z);
@@ -65,6 +65,10 @@ float sphere2R = 0.25;
 vec3 sphere2Pos = vec3(0.0, 0.0, 3.0);
 
 vec3 objectPos = vec3(1.0, 0.0, 1.5);
+
+vec3 repeat(vec3 p, float s) {
+    return mod(p + 0.5 * s, s) - 0.5 * s;
+}
 
 float map(vec3 rayPoint) {
     return mergerSponge(rayPoint);

@@ -9,7 +9,7 @@ class Program
     {
         var nativeSettings = new NativeWindowSettings
         {
-            Title = "Lighting OpenTK",
+            Title = "Rocket Engine Dev Test",
             WindowState = WindowState.Fullscreen
         };
         using var game = new Game(GameWindowSettings.Default, nativeSettings);

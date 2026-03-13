@@ -8,7 +8,7 @@
         <Nullable>enable</Nullable>
         <IsPackable>true</IsPackable>
 
-        <PackageId>RCS</PackageId>
+        <PackageId>RocketEngine.RCS</PackageId>
         <Version>0.1.0</Version>
         <Authors>AgentCryo</Authors>
         <Description>Rocket Control System: Rocket Engine's ECS.</Description>
@@ -21,9 +21,23 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <PackageOutputPath>C:\LocalNuGet\RocketEngine</PackageOutputPath>
         <PackOutputPath>C:\LocalNuGet\RocketEngine</PackOutputPath>
+
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="OpenTK.Mathematics" Version="4.9.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\LICENSE">
+            <Pack>true</Pack>
+            <PackagePath></PackagePath>
+        </None>
+        <None Include="..\README.md">
+            <Pack>true</Pack>
+            <PackagePath></PackagePath>
+        </None>
     </ItemGroup>
 </Project>
