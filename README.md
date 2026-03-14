@@ -1,5 +1,7 @@
 # Rocket Engine
 
+Reference the GitHub [wiki](https://github.com/AgentCryo/Rocket-Engine/wiki) for docs.
+
 ## Dev
 A sandbox environment used for testing new features.  
 My test area that acts as the user-side/game layer built on top of Rocket Engine.
