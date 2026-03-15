@@ -24,6 +24,7 @@ A standalone rendering library built for Rocket Engine.
 - XML documentation for most public API members.
 
 **Planned:**
+- Full deferred lighting.
 - Textures (Color, Normal, Specular/Metallic).
 - Transparency/Translucency.
 - Voxel Global Illumination.
