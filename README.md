@@ -36,6 +36,7 @@ A standalone rendering library built for Rocket Engine.
 **Planned:**
 - Full deferred lighting.
 - Textures (Color, Normal, Specular/Metallic).
+- PBR materials with said textures.
 - Transparency/Translucency.
 - Voxel Global Illumination.
 
