@@ -22,8 +22,7 @@ public class PostProcess : Shader
     {
         _gbuffer = new GBuffer(window.Size);
 
-        AttachShader("./Shaders/DefaultPostProcess/defaultPostProcess.vert",
-            postProcessFragmentPath);
+        AttachShader("./Shaders/DefaultPostProcess/defaultPostProcess.vert", postProcessFragmentPath, ShaderType.PostProcess);
         
         return this;
     }

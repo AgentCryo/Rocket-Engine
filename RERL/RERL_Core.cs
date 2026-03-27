@@ -23,24 +23,6 @@ namespace RERL;
 /// </summary>
 public static class RERL_Core
 {
-
-    public class Material(String name) // For PBR
-    {
-        public string Name = name;
-        public Vector3 BaseAlbedo = Vector3.One;
-        public float BaseRoughness = 0.5f;
-        public float BaseMetallic  = 0.15f;
-        public object TempAlbedoTexture; // Texture either being an ID or an object that holds the path, id, and any other information.
-        public object TempNormalTexture; // Or possibly a list of textures, and the texture holds it's type.
-        //                                  Probably an ID since ImageLoader.cs already returns the ID.
-    }
-
-    public class Model(List<Mesh> subMeshes, List<Material> materials)
-    {
-        public List<Mesh> SubMeshes = subMeshes;
-        public List<Material> Materials = materials;
-    }
-    
     static Shader? _preLightShader;
     public static Shader GetPrelightShader() => _preLightShader!;
 
@@ -64,9 +46,10 @@ public static class RERL_Core
         GL.ClearColor(Color.FromArgb(255, 20,25,35));
         GL.Enable(EnableCap.DepthTest);
         GL.Enable(EnableCap.Blend);
+        GL.FrontFace(FrontFaceDirection.Ccw);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         
-        _preLightShader = new Shader().AttachShader("./Shaders/Prelight/prelight.vert", "./Shaders/Prelight/prelight.frag");
+        _preLightShader = new Shader().AttachShader("./Shaders/Prelight/prelight.vert", "./Shaders/Prelight/prelight.frag", Shader.ShaderType.Prelight);
         RegisterShader(_preLightShader);
         
         InitializeRenderPipeline();

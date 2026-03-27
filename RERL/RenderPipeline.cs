@@ -3,6 +3,7 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using RCS;
 using RERL.Components;
+using RERL.Loaders;
 using RERL.ShaderTypes;
 using static RERL.RERL_Core;
 using Window = OpenTK.Windowing.GraphicsLibraryFramework.Window;
@@ -23,6 +24,7 @@ public static class RenderPipeline
     internal static readonly List<PostProcess> PostProcesses = [];
     internal static readonly Dictionary<int, List<Renderable>> ShaderBatchRendering = new();
     internal static readonly List<Renderable> Renderables = [];
+    internal static readonly List<MaterialLoader.Material> Materials = [];
 
     internal static void InitializeRenderPipeline()
     {
@@ -144,6 +146,27 @@ public static class RenderPipeline
     /// </summary>
     public static void UnregisterShader(Shader shader) => Shaders.Remove(shader);
 
+    #endregion
+
+    #region Material
+
+    /// <summary>
+    /// Registers a material to the render pipeline.
+    /// </summary>
+    /// <returns>Material id.</returns>
+    public static int RegisterMaterial(MaterialLoader.Material material)
+    {
+        if(Materials.Contains(material)) return Materials.IndexOf(material);
+        Materials.Add(material);
+        return Materials.IndexOf(material);
+    }
+    
+    public static void UnregisterMaterial(MaterialLoader.Material material) => Materials.Remove(material);
+
+    public static int GetMaterialIndex(MaterialLoader.Material material) => Materials.IndexOf(material);
+    
+    public static MaterialLoader.Material GetIndexedMaterial(int materialIndex) => Materials[materialIndex];
+    
     #endregion
     
     #region PostProcess

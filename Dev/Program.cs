@@ -10,7 +10,8 @@ class Program
         var nativeSettings = new NativeWindowSettings
         {
             Title = "Rocket Engine Dev Test",
-            WindowState = WindowState.Fullscreen
+            WindowState = WindowState.Fullscreen,
+            Flags = ContextFlags.Debug 
         };
         using var game = new Game(GameWindowSettings.Default, nativeSettings);
         game.Run();

@@ -9,6 +9,13 @@ namespace RERL.ShaderTypes;
 /// </summary>
 public class Shader
 {
+    public enum ShaderType
+    {
+        Shader,
+        Prelight,
+        PostProcess
+    }
+    
     public const string DefaultVert = "./Shaders/Default/default.vert";
     public const string DefaultFrag = "./Shaders/Default/default.frag";
     
@@ -26,25 +33,41 @@ public class Shader
     /// <param name="vertexPath">Path to the vertex shader source file.</param>
     /// <param name="fragmentPath">Path to the fragment shader source file.</param>
     /// <returns>The current <see cref="Shader"/> instance for chaining.</returns>
-    public Shader AttachShader(string vertexPath, string fragmentPath)
+    public Shader AttachShader(string vertexPath, string fragmentPath, ShaderType shaderType)
     {
         string vertexSource = File.ReadAllText(vertexPath);
         string fragmentSource = File.ReadAllText(fragmentPath);
 
-        int vertexShader = GL.CreateShader(ShaderType.VertexShader);
+        int vertexShader = GL.CreateShader(OpenTK.Graphics.OpenGL4.ShaderType.VertexShader);
         if (vertexShader == -1) throw new Exception("ERR: Vertex Shader could not be created!");
         GL.ShaderSource(vertexShader, vertexSource);
         GL.CompileShader(vertexShader);
         CheckCompile(vertexShader, "VERTEX", vertexPath);
 
-        string finalFragmentSource =
-            "#version 430 core\n" +
-            File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
-            File.ReadAllText("./Shaders/Helpers/gbufferSampler.glsl") + "\n" +
-            File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
-            fragmentSource;
+        string finalFragmentSource = "#version 460 core\n" + fragmentSource;
+        switch (shaderType) {
+            case ShaderType.Shader:
+                finalFragmentSource =
+                    "#version 460 core\n" +
+                    File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
+                    File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
+                    fragmentSource; break;
+            case ShaderType.Prelight:
+                finalFragmentSource =
+                    "#version 460 core\n" +
+                    File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
+                    File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
+                    fragmentSource; break;
+            case ShaderType.PostProcess:
+                finalFragmentSource =
+                    "#version 460 core\n" +
+                    File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
+                    File.ReadAllText("./Shaders/Helpers/gbufferSampler.glsl") + "\n" +
+                    File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
+                    fragmentSource; break;
+        }
         
-        int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
+        int fragmentShader = GL.CreateShader(OpenTK.Graphics.OpenGL4.ShaderType.FragmentShader);
         if (fragmentShader == -1) throw new Exception("ERR: Fragment Shader could not be created!");
         GL.ShaderSource(fragmentShader, finalFragmentSource);
         GL.CompileShader(fragmentShader);

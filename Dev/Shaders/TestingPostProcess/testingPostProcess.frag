@@ -12,6 +12,6 @@ void main() {
     float d = LinearizeDepth(gl_FragDepth, 0.1, 100.0);
     d = clamp(d / 100.0, 0.0, 1.0);
     //gAlbedo = vec4(vec3(d*5), 1.0);
-    gAlbedo =  vec4((DecodeNormal(norm) + 1) * 0.5, 1.0);
-    //gAlbedo = vec4(color, 1.0);
+    //gAlbedo =  vec4((DecodeNormal(norm) + 1) * 0.5, 1.0);
+    gAlbedo = vec4(color, 1.0);
 }

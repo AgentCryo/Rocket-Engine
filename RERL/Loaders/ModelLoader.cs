@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using OpenTK.Mathematics;
 using RCS;
+using static RERL.Loaders.MaterialLoader;
 using static RERL.RenderData;
 using static RERL.RERL_Core;
 
@@ -14,6 +15,11 @@ namespace RERL.Loaders;
 /// </summary>
 public static class ModelLoader
 {
+    public class Model(Mesh[] subMeshes)
+    {
+        public Mesh[] SubMeshes = subMeshes;
+    }
+    
     public record ModelReturn
     {
         public string Name;
@@ -22,13 +28,13 @@ public static class ModelLoader
         public string ParrentName;
     }
     
-    public const string Cube = @"./Models/Cube.obj";
-    public const string Icosahedron = @"./Models/Icosahedron.obj";
-    public const string UVSphere = @"./Models/UVSphere.obj";
-    
-    public static Mesh CubeMesh => ParseObj(Cube)[0].SubMeshes[0];
-    public static Mesh IcosahedronMesh => ParseObj(Icosahedron)[0].SubMeshes[0];
-    public static Mesh UVSphereMesh => ParseObj(UVSphere)[0].SubMeshes[0];
+    //public const string Cube = @"./Models/Cube.obj";
+    //public const string Icosahedron = @"./Models/Icosahedron.obj";
+    //public const string UVSphere = @"./Models/UVSphere.obj";
+    //
+    //public static Mesh CubeMesh => ParseObj(Cube)[0].SubMeshes[0];
+    //public static Mesh IcosahedronMesh => ParseObj(Icosahedron)[0].SubMeshes[0];
+    //public static Mesh UVSphereMesh => ParseObj(UVSphere)[0].SubMeshes[0];
 
     /// <summary>
     /// Parses a mesh file based on its extension.
@@ -47,145 +53,6 @@ public static class ModelLoader
 
     static readonly string[] AlbedoEndings = ["_n", "_normal", "_ddn", "_nrm"];
     static readonly string[] NormalEndings = ["_albedo", "_diff", "_diffuse", "_col", "_color", "_basecolor", "_colour", "_basecolour"];
-    
-    /// <summary>
-    /// Parses an OBJ file into a mesh, reading vertex positions, normals,
-    /// UV coordinates, and face definitions.
-    /// </summary>
-    /// <param name="objFilePath">Path to the OBJ file.</param>
-    /// <returns>A populated <see cref="RenderData.Mesh"/> instance.</returns>
-    /// <exception cref="Exception">
-    /// Thrown if the OBJ file contains invalid data or cannot be read.
-    /// </exception>
-    [Obsolete ("Won't support, switch to glTF.")]
-    public static List<Model> ParseObj(string objFilePath)
-    {
-        string currentModel = "";
-        List<Model> models = [];
-        string currentMaterial = "";
-        List<Mesh> subMeshes = [];
-        Dictionary<String, Material> materials = new();
-        
-        List<Vector3> tempVertexPositions = [];
-        List<Vector3> tempVertexNormals = [];
-        List<Vector2> tempVertexUVs = [];
-        List<uint> indices = [];
-        List<Vertex> vertices = [];
-
-        foreach (var line in File.ReadLines(objFilePath))
-        {
-            if (line.StartsWith($"#") || string.IsNullOrWhiteSpace(line))
-                continue;
-
-            var tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-            switch (tokens[0])
-            {
-                case "o":
-                    if (!string.IsNullOrWhiteSpace(currentModel)) {
-                        AddSubMesh(ref currentMaterial);
-                        models.Add(new Model([..subMeshes], [..materials.Values]));
-                        subMeshes.Clear();
-                        materials.Clear();
-                        currentMaterial = "";
-                        currentModel = "";
-                    }
-                    currentModel = tokens[1];
-                    break;
-                
-                case "v":
-                    tempVertexPositions.Add(new Vector3(
-                        float.Parse(tokens[1]),
-                        float.Parse(tokens[2]),
-                        float.Parse(tokens[3])));
-                    break;
-
-                case "vn":
-                    tempVertexNormals.Add(new Vector3(
-                        float.Parse(tokens[1]),
-                        float.Parse(tokens[2]),
-                        float.Parse(tokens[3])));
-                    break;
-
-                case "vt":
-                    tempVertexUVs.Add(new Vector2(
-                        float.Parse(tokens[1]),
-                        float.Parse(tokens[2])));
-                    break;
-                
-                case "usemtl":
-                    if (!string.IsNullOrWhiteSpace(currentMaterial)) {
-                        subMeshes.Add(new Mesh(vertices.ToArray(), indices.ToArray(), materials.GetValueOrDefault(currentMaterial)));
-                        vertices.Clear();
-                        indices.Clear();
-                    }
-                    currentMaterial = tokens[1];
-                    materials.TryAdd(currentMaterial, new Material(currentMaterial));
-                    break;
-                
-                case "f":
-                    for (int i = 2; i < tokens.Length; i++)
-                    {
-                        uint i0 = AddVertex(tokens[1]);
-                        uint i1 = AddVertex(tokens[i]);
-                        uint i2 = AddVertex(tokens[i + 1]);
-
-                        indices.Add(i0);
-                        indices.Add(i1);
-                        indices.Add(i2);
-
-                        if (i + 1 == tokens.Length - 1)
-                            break;
-                    }
-                    break;
-            }
-        }
-
-        AddSubMesh(ref currentMaterial);
-
-        if (!string.IsNullOrWhiteSpace(currentModel)) {
-            models.Add(new Model([..subMeshes], [..materials.Values]));
-            subMeshes.Clear();
-            materials.Clear();
-            currentModel = "";
-        }
-        
-        return models;
-
-        void AddSubMesh(ref string currentMaterial)
-        {
-            if (string.IsNullOrEmpty(currentMaterial))
-                currentMaterial = "__default";
-
-            materials.TryAdd(currentMaterial, new Material(currentMaterial));
-
-            subMeshes.Add(new Mesh(
-                vertices.ToArray(),
-                indices.ToArray(),
-                materials[currentMaterial]
-            ));
-
-            vertices.Clear();
-            indices.Clear();
-            currentMaterial = "";
-        }
-        
-        uint AddVertex(string faceToken)
-        {
-            string[] vertex = faceToken.Split('/');
-
-            vertices.Add(new Vertex(
-                position: tempVertexPositions[int.Parse(vertex[0]) - 1],
-                uv: tempVertexUVs.Count > 0
-                    ? tempVertexUVs[int.Parse(vertex[1]) - 1]
-                    : Vector2.Zero,
-                normal: tempVertexNormals.Count > 0
-                    ? tempVertexNormals[int.Parse(vertex[2]) - 1]
-                    : Vector3.Zero));
-
-            return (uint)(vertices.Count - 1);
-        }
-    }
 
     public static List<ModelReturn> ParseGltf(string filePath, bool isGlb)
     {
@@ -232,18 +99,28 @@ public static class ModelLoader
             #region Transform
 
             Transform entityTransform;
+
             if (node.TryGetProperty("matrix", out var mElem))
             {
                 var mGltf = ReadMatrix(mElem);
-                DecomposeTRS(mGltf, out var t, out var r, out var s);
+                DecomposeTRS(ConvertGltfMatrixToLH(mGltf), out var t, out var r, out var s);
                 entityTransform = new Transform(t, r, s);
-            } else {
+            }
+            else
+            {
                 var t = node.TryGetProperty("translation", out var tElem) ? ReadVector3(tElem) : Vector3.Zero;
                 var r = node.TryGetProperty("rotation", out var rElem) ? ReadQuaternion(rElem) : Quaternion.Identity;
                 var s = node.TryGetProperty("scale", out var sElem) ? ReadVector3(sElem) : Vector3.One;
+
+                var mGltf =
+                    Matrix4.CreateScale(s) *
+                    Matrix4.CreateFromQuaternion(r) *
+                    Matrix4.CreateTranslation(t);
+
+                DecomposeTRS(ConvertGltfMatrixToLH(mGltf), out t, out r, out s);
                 entityTransform = new Transform(t, r, s);
             }
-            
+
             #endregion
             
             if (!node.TryGetProperty("mesh", out var meshIndexElem)) {
@@ -257,25 +134,29 @@ public static class ModelLoader
             }
             
             List<Mesh> subMeshes = [];
+            Dictionary<int, (Material material, int localIndex)> modelMaterials = [];
+            int nextLocalIndex = 0;
             var modelMesh = root.GetProperty("meshes")[(int)node.GetProperty("mesh").GetUInt32()];
             
             if(name == "lionhead") Logger.Log($"lionhead Pos: {entityTransform.Position} Rot: {entityTransform.Rotation}");
             if(name == "decals_1st_floor") Logger.Log($"decals_1st_floor Pos: {entityTransform.Position} Rot: {entityTransform.Rotation}");
-
-
+            
             foreach (var subMesh in modelMesh.GetProperty("primitives").EnumerateArray()) {
                 var attributes = subMesh.GetProperty("attributes");
                 
                 var posIndex = attributes.GetProperty("POSITION").GetUInt32();
                 var nrmIndex = attributes.GetProperty("NORMAL").GetUInt32();
+                var texCoord0Index = attributes.GetProperty("TEXCOORD_0").GetUInt32();
                 var indicesIndex = subMesh.GetProperty("indices").GetUInt32();
 
                 var posAccessor = accessors[(int)posIndex];
                 var nrmAccessor = accessors[(int)nrmIndex];
+                var texCoord0Accessor = accessors[(int)texCoord0Index];
                 var indicesAccessor = accessors[(int)indicesIndex];
 
                 var posBufferView = bufferViews[posAccessor.GetProperty("bufferView").GetInt32()];
                 var nrmBufferView = bufferViews[nrmAccessor.GetProperty("bufferView").GetInt32()];
+                var texCoord0BufferView = bufferViews[texCoord0Accessor.GetProperty("bufferView").GetInt32()];
                 var indicesBufferView = bufferViews[indicesAccessor.GetProperty("bufferView").GetInt32()];
 
                 // Currently I assume vertex normals are always included in the mesh,
@@ -285,9 +166,22 @@ public static class ModelLoader
                     data.bin[posBufferView.GetProperty("buffer").GetUInt32()],
                     GetByteAreaData(posAccessor, posBufferView));
                 
+                for (int i = 0; i < vertexPositions.Length; i++)
+                    vertexPositions[i].Z = -vertexPositions[i].Z;
+                
                 var vertexNormals = ReadFromByteArray<Vector3>(
                     data.bin[nrmBufferView.GetProperty("buffer").GetUInt32()],
                     GetByteAreaData(nrmAccessor, nrmBufferView));
+                
+                for (int i = 0; i < vertexNormals.Length; i++)
+                    vertexNormals[i].Z = -vertexNormals[i].Z;
+                
+                var vertexTexCoord0 = ReadFromByteArray<Vector2>(
+                    data.bin[texCoord0BufferView.GetProperty("buffer").GetUInt32()],
+                    GetByteAreaData(texCoord0Accessor, texCoord0BufferView));
+                
+                for (int i = 0; i < vertexTexCoord0.Length; i++)
+                    vertexTexCoord0[i].Y = 1.0f - vertexTexCoord0[i].Y;
 
                 var indicesComponentType = indicesAccessor.GetProperty("componentType").GetUInt32();
 
@@ -311,13 +205,26 @@ public static class ModelLoader
                     _ => [] // Default
                 };
 
-                subMeshes.Add(new Mesh(BuildVertices(vertexPositions, vertexNormals), [..indices],
-                    new Material("__default")));
+                Material material;
+
+                if (subMesh.TryGetProperty("material", out var matElem))
+                {
+                    int globalMaterialIndex = matElem.GetInt32();
+                    material = LoadGltfMaterial(
+                        root.GetProperty("materials")[globalMaterialIndex],
+                        root,
+                        filePath
+                    );
+                } else {
+                    material = MaterialLoader.DefaultMaterial;
+                }
+
+                subMeshes.Add(new Mesh(BuildVertices(vertexPositions, vertexNormals, vertexTexCoord0), [..indices]) {MaterialIndex = RenderPipeline.RegisterMaterial(material)});
             }
 
             parsedEntities.Add(new ModelReturn{
                 Name = name,
-                Model = new Model([..subMeshes], []),
+                Model = new Model([..subMeshes]),
                 Transform = entityTransform,
                 ParrentName = parentName
             });
@@ -486,7 +393,7 @@ public static class ModelLoader
         return result;
     }
     
-    public static Vertex[] BuildVertices(Vector3[] positions, Vector3[] normals)
+    public static Vertex[] BuildVertices(Vector3[] positions, Vector3[] normals, Vector2[] texCoords)
     {
         int count = positions.Length;
         Vertex[] verts = new Vertex[count];
@@ -496,7 +403,7 @@ public static class ModelLoader
             verts[i] = new Vertex(
                 positions[i],
                 normals != null && i < normals.Length ? normals[i] : Vector3.Zero,
-                Vector2.Zero // UVs later
+                texCoords[i]
             );
         }
 
@@ -507,10 +414,10 @@ public static class ModelLoader
     {
         translation = new Vector3(m.M41, m.M42, m.M43);
 
-        var x = new Vector3(m.M11, m.M12, m.M13);
-        var y = new Vector3(m.M21, m.M22, m.M23);
-        var z = new Vector3(m.M31, m.M32, m.M33);
-
+        var x = new Vector3(m.M11, m.M21, m.M31);
+        var y = new Vector3(m.M12, m.M22, m.M32);
+        var z = new Vector3(m.M13, m.M23, m.M33);
+        
         var sx = x.Length;
         var sy = y.Length;
         var sz = z.Length;
@@ -528,5 +435,11 @@ public static class ModelLoader
         );
 
         rotation = Quaternion.FromMatrix(rotMat);
+    }
+    
+    static Matrix4 ConvertGltfMatrixToLH(Matrix4 m)
+    {
+        Matrix4 S = Matrix4.CreateScale(1, 1, -1);
+        return S * m * S;
     }
 }

@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -8,6 +9,7 @@ using RERL;
 using RERL.Components;
 using RERL.Loaders;
 using RERL.ShaderTypes;
+using OpenTK.Graphics.OpenGL4;
 
 namespace Dev;
 
@@ -29,19 +31,62 @@ public class Game : GameWindow
     {
     }
     
+    static DebugProc DebugMessageDelegate = OnDebugMessage;
+    
     protected override void OnLoad()
     {
         base.OnLoad();
         Logger.Initialize(false, true);
         
+        GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
+        GL.Enable(EnableCap.DebugOutput);
+        GL.Enable(EnableCap.DebugOutputSynchronous);
+        
+        int count = GL.GetInteger(GetPName.NumExtensions);
+        List<string> extensions = new List<string>();
+
+        for (int i = 0; i < count; i++)
+        {
+            string ext = GL.GetString(StringNameIndexed.Extensions, i);
+            extensions.Add(ext);
+        }
+
+        bool bindlessSupported = extensions.Contains("GL_ARB_bindless_texture");
+        Console.WriteLine(bindlessSupported);
+        
+        int tex = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, tex);
+
+        byte[] pixel = { 255, 255, 255, 255 };
+        GL.TexImage2D(TextureTarget.Texture2D, 0,
+            PixelInternalFormat.Rgba8,
+            1, 1, 0,
+            PixelFormat.Rgba, PixelType.UnsignedByte,
+            pixel);
+
+        try
+        {
+            long handle = GL.Arb.GetTextureHandle(tex);
+            Console.WriteLine("Handle: " + handle);
+
+            GL.Arb.MakeTextureHandleResident(handle);
+            Console.WriteLine("Bindless REALLY supported");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Bindless NOT actually supported");
+            Console.WriteLine(ex.Message);
+        }
+
+        
         _camera.SetProjectionFovXInDegrees(90, Size.X / (float)Size.Y, 0.1f, 100f);
         CursorState = CursorState.Grabbed;
         _cameraController.InitializeCameraController(_camera, KeyboardState, MouseState, this);
         
-        _fadeTest = new Shader().AttachShader(Shader.DefaultVert, "./Shaders/FadeTest/fadeTest.frag");
+        _fadeTest = new Shader().AttachShader(Shader.DefaultVert, "./Shaders/FadeTest/fadeTest.frag", Shader.ShaderType.Prelight);
         RenderPipeline.RegisterShader(_fadeTest);
         
-        _mengerSpongeObjectShader = new Shader().AttachShader(Shader.DefaultVert, "./Shaders/MengerSpongeObject/mengerSpongeObject.frag");
+        _mengerSpongeObjectShader = new Shader().AttachShader(Shader.DefaultVert, "./Shaders/MengerSpongeObject/mengerSpongeObject.frag", Shader.ShaderType.Shader);
         _mengerSpongeObjectShader.RegisterAutoUniform("cameraPos", () => _cameraController.GetPosition());
         _mengerSpongeObjectShader.RegisterAutoUniform("cameraRot", () => _cameraController.GetOrientation());
         _mengerSpongeObjectShader.RegisterAutoUniform("screenSize", () => Size.ToVector2());
@@ -57,58 +102,58 @@ public class Game : GameWindow
         
         MainScene = new RCS_Core.Scene("Main");
 
-        // Cube
-        {
-            var cube = new Entity("Cube")
-                .AddComponent(new MeshRenderer()
-                    .AttachMesh(ModelLoader.CubeMesh)
-                    .AttachShader(_fadeTest))
-                .AddComponent<CubeComponent>();
-
-            cube.Transform.Position = new Vector3(0, 0.0f, 0);
-            MainScene.AddEntity(cube);
-        }
-
-        // Menger Sponge Object
-        {
-            var menger = new Entity("MengerSpongeObject")
-                .AddComponent(new MeshRenderer()
-                    .AttachMesh(ModelLoader.CubeMesh)
-                    .AttachShader(_mengerSpongeObjectShader));
-
-            menger.Transform.Position = new Vector3(5, 0.0f, 0);
-            menger.Transform.Scale = new Vector3(2.5f, 2.5f, 2.5f);
-            MainScene.AddEntity(menger);
-
-            _mengerSpongeObjectShader.RegisterAutoUniform("objectPos", () => menger.Transform.Position);
-            _mengerSpongeObjectShader.RegisterAutoUniform(
-                "objectRot",
-                () => menger.Transform.Rotation
-            );
-            _mengerSpongeObjectShader.RegisterAutoUniform("objectScale", () => menger.Transform.Scale);
-        }
-
-        // Icosahedron
-        {
-            var icosahedron = new Entity("Icosahedron")
-                .AddComponent(new PongComponent(5, 5))
-                .AddComponent(new MeshRenderer()
-                    .AttachMesh(ModelLoader.IcosahedronMesh)
-                    .AttachShader(RERL_Core.GetPrelightShader()));
-
-            MainScene.AddEntity(icosahedron);
-        }
-        
-        // Sphere
-        {
-            var sphere = new Entity("Sphere")
-                .AddComponent(new MeshRenderer()
-                    .AttachMesh(ModelLoader.UVSphereMesh)
-                    .AttachShader(RERL_Core.GetPrelightShader()));
-
-            sphere.Transform.SetPosition((0, 1, 0));
-            MainScene.AddEntity(sphere);
-        }
+        //// Cube
+        //{
+        //    var cube = new Entity("Cube")
+        //        .AddComponent(new MeshRenderer()
+        //            .AttachMesh(ModelLoader.CubeMesh)
+        //            .AttachShader(_fadeTest))
+        //        .AddComponent<CubeComponent>();
+//
+        //    cube.Transform.Position = new Vector3(0, 0.0f, 0);
+        //    MainScene.AddEntity(cube);
+        //}
+//
+        //// Menger Sponge Object
+        //{
+        //    var menger = new Entity("MengerSpongeObject")
+        //        .AddComponent(new MeshRenderer()
+        //            .AttachMesh(ModelLoader.CubeMesh)
+        //            .AttachShader(_mengerSpongeObjectShader));
+//
+        //    menger.Transform.Position = new Vector3(5, 0.0f, 0);
+        //    menger.Transform.Scale = new Vector3(2.5f, 2.5f, 2.5f);
+        //    MainScene.AddEntity(menger);
+//
+        //    _mengerSpongeObjectShader.RegisterAutoUniform("objectPos", () => menger.Transform.Position);
+        //    _mengerSpongeObjectShader.RegisterAutoUniform(
+        //        "objectRot",
+        //        () => menger.Transform.Rotation
+        //    );
+        //    _mengerSpongeObjectShader.RegisterAutoUniform("objectScale", () => menger.Transform.Scale);
+        //}
+//
+        //// Icosahedron
+        //{
+        //    var icosahedron = new Entity("Icosahedron")
+        //        .AddComponent(new PongComponent(5, 5))
+        //        .AddComponent(new MeshRenderer()
+        //            .AttachMesh(ModelLoader.IcosahedronMesh)
+        //            .AttachShader(RERL_Core.GetPrelightShader()));
+//
+        //    MainScene.AddEntity(icosahedron);
+        //}
+        //
+        //// Sphere
+        //{
+        //    var sphere = new Entity("Sphere")
+        //        .AddComponent(new MeshRenderer()
+        //            .AttachMesh(ModelLoader.UVSphereMesh)
+        //            .AttachShader(RERL_Core.GetPrelightShader()));
+//
+        //    sphere.Transform.SetPosition((0, 1, 0));
+        //    MainScene.AddEntity(sphere);
+        //}
 
         {
             var glbSponzaModels = ModelLoader.ParseMesh("./Models/glbSponza/NewSponza_Main_glTF_003.gltf");
@@ -150,12 +195,12 @@ public class Game : GameWindow
         _cameraController.UpdateInput(args.Time);
         RCS_Core.UpdateActiveScene(args.Time);
 
-        var menger = RCS_Core.GetActiveScene().GetEntity("MengerSpongeObject");
-        _time += (float)args.Time / 10f;
-
-        menger.Transform.Position.X = float.Sin(_time) * 10f;
-        menger.Transform.Position.Y = float.Cos(_time) * 10f;
-        menger.Transform.EulerAngles = new Vector3(0, _time * 31f, 0);
+        //var menger = RCS_Core.GetActiveScene().GetEntity("MengerSpongeObject");
+        //_time += (float)args.Time / 10f;
+//
+        //menger.Transform.Position.X = float.Sin(_time) * 10f;
+        //menger.Transform.Position.Y = float.Cos(_time) * 10f;
+        //menger.Transform.EulerAngles = new Vector3(0, _time * 31f, 0);
 
         base.OnUpdateFrame(args);
     }
@@ -170,5 +215,31 @@ public class Game : GameWindow
     {
         base.OnResize(e);
         _camera.SetProjectionFovXInDegrees(90, Size.X / (float)Size.Y, 0.1f, 100f);
+    }
+    
+    static void OnDebugMessage(
+        DebugSource source,     // Source of the debugging message.
+        DebugType type,         // Type of the debugging message.
+        int id,                 // ID associated with the message.
+        DebugSeverity severity, // Severity of the message.
+        int length,             // Length of the string in pMessage.
+        IntPtr pMessage,        // Pointer to message string.
+        IntPtr pUserParam)      // The pointer you gave to OpenGL, explained later.
+    {
+        // In order to access the string pointed to by pMessage, you can use Marshal
+        // class to copy its contents to a C# string without unsafe code. You can
+        // also use the new function Marshal.PtrToStringUTF8 since .NET Core 1.1.
+        string message = Marshal.PtrToStringAnsi(pMessage, length);
+
+        // The rest of the function is up to you to implement, however a debug output
+        // is always useful.
+        Console.WriteLine("[{0} source={1} type={2} id={3}] {4}", severity, source, type, id, message);
+
+        // Potentially, you may want to throw from the function for certain severity
+        // messages.
+        if (type == DebugType.DebugTypeError)
+        {
+            throw new Exception(message);
+        }
     }
 }

@@ -9,9 +9,9 @@ vec4 EncodeNormal(vec3 n)
 }
 
 // Decode a normal from 0-1 back to -1..1
-vec3 DecodeNormal(vec4 packed)
+vec3 DecodeNormal(vec4 packedNorm)
 {
-    return normalize(packed.xyz * 2.0 - 1.0);
+    return normalize(packedNorm.xyz * 2.0 - 1.0);
 }
 
 float LinearizeDepth(float depth, float near, float far)
