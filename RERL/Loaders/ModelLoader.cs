@@ -54,48 +54,188 @@ public static class ModelLoader
     static readonly string[] AlbedoEndings = ["_n", "_normal", "_ddn", "_nrm"];
     static readonly string[] NormalEndings = ["_albedo", "_diff", "_diffuse", "_col", "_color", "_basecolor", "_colour", "_basecolour"];
 
+    struct AccessorView<T> where T : unmanaged
+    {
+        public byte[] Buffer;
+        public int Offset;
+        public int Count;
+        public int Stride;
+    }
+    
+    static Dictionary<int, AccessorView<byte>> BuildAccessorViews(
+        JsonElement accessors,
+        JsonElement bufferViews,
+        Dictionary<uint, byte[]> buffers)
+    {
+        var dict = new Dictionary<int, AccessorView<byte>>();
+
+        for (int i = 0; i < accessors.GetArrayLength(); i++)
+        {
+            var acc = accessors[i];
+            int viewIndex = acc.GetProperty("bufferView").GetInt32();
+            var view = bufferViews[viewIndex];
+
+            uint bufferIndex = view.GetProperty("buffer").GetUInt32();
+            byte[] buffer = buffers[bufferIndex];
+
+            int offset = view.TryGetProperty("byteOffset", out var off) ? off.GetInt32() : 0;
+            offset += acc.TryGetProperty("byteOffset", out var aoff) ? aoff.GetInt32() : 0;
+
+            int count = acc.GetProperty("count").GetInt32();
+            int stride = view.TryGetProperty("byteStride", out var s) ? s.GetInt32() : 0;
+
+            dict[i] = new AccessorView<byte>
+            {
+                Buffer = buffer,
+                Offset = offset,
+                Count = count,
+                Stride = stride
+            };
+        }
+
+        return dict;
+    }
+    
+    static readonly Dictionary<int, int> MaterialCache = new();
+
+    static Mesh BuildMesh(
+        JsonElement primitive,
+        Dictionary<int, AccessorView<byte>> accessors,
+        JsonElement root,
+        string filePath)
+    {
+        var attrs = primitive.GetProperty("attributes");
+
+        int posIndex = attrs.GetProperty("POSITION").GetInt32();
+        int idxIndex = primitive.GetProperty("indices").GetInt32();
+
+        
+        int nrmIndex = attrs.TryGetProperty("NORMAL", out var nrmProp)
+            ? nrmProp.GetInt32()
+            : -1;
+
+        int uvIndex = attrs.TryGetProperty("TEXCOORD_0", out var uvProp)
+            ? uvProp.GetInt32()
+            : -1;
+
+        var posView = accessors[posIndex];
+        var idxView = accessors[idxIndex];
+        var nrmView = accessors[nrmIndex];
+        var uvView  = accessors[uvIndex];
+
+        int vCount = posView.Count;
+        int iCount = idxView.Count;
+
+        var idxAccessor = root.GetProperty("accessors")[idxIndex];
+        string type = idxAccessor.GetProperty("type").GetString();
+
+        if (type != "SCALAR")
+            throw new Exception($"Index accessor at {idxIndex} is not SCALAR (got {type})");
+
+        uint componentType = idxAccessor.GetProperty("componentType").GetUInt32();
+        
+        // Allocate ONLY the final arrays (this is what your renderer needs)
+        Vertex[] vertices = new Vertex[vCount];
+        uint[] indices = new uint[iCount];
+
+        // Fill vertices
+        for (int i = 0; i < vCount; i++)
+        {
+            ReadVec3(posView, i, out float px, out float py, out float pz);
+            
+            float nx, ny, nz;
+            if (nrmIndex >= 0) ReadVec3(nrmView, i, out nx, out ny, out nz);
+            else nx = ny = nz = 0;
+
+            float u, v;
+            if (uvIndex >= 0) ReadVec2(uvView, i, out u, out v);
+            else u = v = 0;
+
+            vertices[i] = new Vertex(
+                new Vector3(px, py, -pz),
+                new Vector3(nx, ny, -nz),
+                new Vector2(u, 1 - v)
+            );
+        }
+
+        // Fill indices
+        for (int i = 0; i < iCount; i++)
+        {
+            switch (componentType)
+            {
+                case 5121: // UNSIGNED_BYTE
+                    indices[i] = ReadByte(idxView, i);
+                    break;
+
+                case 5123: // UNSIGNED_SHORT
+                    indices[i] = ReadUShort(idxView, i);
+                    break;
+
+                case 5125: // UNSIGNED_INT
+                    indices[i] = ReadUInt(idxView, i);
+                    break;
+
+                default:
+                    throw new Exception($"Unsupported index type {componentType}");
+            }
+        }
+
+
+        // Material
+        int matIndex = -1;
+        if (!primitive.TryGetProperty("material", out var matElem)) return new Mesh(vertices, indices) { MaterialIndex = matIndex };
+        int gltfMatIndex = matElem.GetInt32();
+
+        if (MaterialCache.TryGetValue(gltfMatIndex, out matIndex))
+        {
+            Logger.Log($"Reusing material {matIndex} for glTF material {gltfMatIndex}");
+        } else {
+            var mat = LoadGltfMaterial(root.GetProperty("materials")[gltfMatIndex], root, filePath);
+            matIndex = RenderPipeline.RegisterMaterial(mat);
+
+            MaterialCache[gltfMatIndex] = matIndex;
+
+            Logger.Log($"Loaded new material {matIndex} for glTF material {gltfMatIndex}");
+        }
+
+        return new Mesh(vertices, indices) { MaterialIndex = matIndex };
+    }
+    
     public static List<ModelReturn> ParseGltf(string filePath, bool isGlb)
     {
-        (JsonDocument? json, Dictionary<uint, byte[]> bin) data = !isGlb ? ExtractFromGltf() : ExtractFromGlb();
-        if (data.json == null) {
-            Logger.Error($"Failed to extract {(!isGlb ? new string("gltf") : new string("glb"))} file {filePath}");
-            return [];
-        }
+        Logger.Log("ParseGltf CALLED");
 
-        var root = data.json.RootElement;
-        Logger.Log(root.GetProperty("accessors").GetArrayLength().ToString());
-        
-        var entitiesArrayEnum = root.GetProperty("nodes").EnumerateArray();
-        var entitiesElem = entitiesArrayEnum.ToArray();
-        Dictionary<string, JsonElement> entities = [];
-        foreach (var entity in entitiesElem) {
-            entities.TryAdd(entity.GetProperty("name").GetString() ?? "", entity);
-        }
+        var (json, buffers) = isGlb ? ExtractFromGlb() : ExtractFromGltf();
+        if (json == null) return [];
 
-        #region Parent Lookup
+        var root = json.RootElement;
 
-        var parentOf = Enumerable.Range(0, entitiesElem.Length).ToDictionary(i => i, _ => (int?)null);
+        var accessors = BuildAccessorViews(
+            root.GetProperty("accessors"),
+            root.GetProperty("bufferViews"),
+            buffers
+        );
 
-        for (int p = 0; p < entitiesElem.Length; p++)
+        var nodes = root.GetProperty("nodes").EnumerateArray().ToArray();
+        var parentOf = Enumerable.Range(0, nodes.Length).ToDictionary(i => i, _ => (int?)null);
+
+        for (int p = 0; p < nodes.Length; p++)
         {
-            if (!entitiesElem[p].TryGetProperty("children", out var children)) continue;
-
+            if (!nodes[p].TryGetProperty("children", out var children)) continue;
             foreach (var c in children.EnumerateArray())
                 parentOf[c.GetInt32()] = p;
         }
-
-        #endregion
         
-        List<ModelReturn> parsedEntities = [];
-        foreach (var (name, node) in entities) {
-            var accessors = root.GetProperty("accessors");
-            var bufferViews = root.GetProperty("bufferViews");
+        List<ModelReturn> results = [];
+
+        foreach (var node in root.GetProperty("nodes").EnumerateArray())
+        {
+            string name = node.GetProperty("name").GetString() ?? "";
             
-            int nodeIndex = Array.FindIndex(entitiesElem, e => e.GetProperty("name").GetString() == name);
-            
+            int nodeIndex = Array.FindIndex(nodes, n => n.GetProperty("name").GetString() == name);
             int? parentIndex = parentOf[nodeIndex];
-            string parentName = parentIndex.HasValue ? entitiesElem[parentIndex.Value].GetProperty("name").GetString() ?? "" : "";
-            
+            string parentName = parentIndex.HasValue ? nodes[parentIndex.Value].GetProperty("name").GetString() ?? "" : "";
+
             #region Transform
 
             Transform entityTransform;
@@ -122,136 +262,37 @@ public static class ModelLoader
             }
 
             #endregion
-            
-            if (!node.TryGetProperty("mesh", out var meshIndexElem)) {
-                parsedEntities.Add(new ModelReturn{
-                        Name = name,
-                        Model = null,
-                        Transform = entityTransform,
-                        ParrentName = parentName
-                    });
+
+            if (!node.TryGetProperty("mesh", out var meshElem))
+            {
+                results.Add(new ModelReturn {
+                    Name = name,
+                    Model = null,
+                    Transform = entityTransform,
+                    ParrentName = parentName
+                });
                 continue;
             }
-            
+
+            var gltfMesh = root.GetProperty("meshes")[meshElem.GetInt32()];
             List<Mesh> subMeshes = [];
-            Dictionary<int, (Material material, int localIndex)> modelMaterials = [];
-            int nextLocalIndex = 0;
-            var modelMesh = root.GetProperty("meshes")[(int)node.GetProperty("mesh").GetUInt32()];
-            
-            if(name == "lionhead") Logger.Log($"lionhead Pos: {entityTransform.Position} Rot: {entityTransform.Rotation}");
-            if(name == "decals_1st_floor") Logger.Log($"decals_1st_floor Pos: {entityTransform.Position} Rot: {entityTransform.Rotation}");
-            
-            foreach (var subMesh in modelMesh.GetProperty("primitives").EnumerateArray()) {
-                var attributes = subMesh.GetProperty("attributes");
-                
-                var posIndex = attributes.GetProperty("POSITION").GetUInt32();
-                var nrmIndex = attributes.GetProperty("NORMAL").GetUInt32();
-                var texCoord0Index = attributes.GetProperty("TEXCOORD_0").GetUInt32();
-                var indicesIndex = subMesh.GetProperty("indices").GetUInt32();
 
-                var posAccessor = accessors[(int)posIndex];
-                var nrmAccessor = accessors[(int)nrmIndex];
-                var texCoord0Accessor = accessors[(int)texCoord0Index];
-                var indicesAccessor = accessors[(int)indicesIndex];
+            foreach (var prim in gltfMesh.GetProperty("primitives").EnumerateArray())
+                subMeshes.Add(BuildMesh(prim, accessors, root, filePath));
 
-                var posBufferView = bufferViews[posAccessor.GetProperty("bufferView").GetInt32()];
-                var nrmBufferView = bufferViews[nrmAccessor.GetProperty("bufferView").GetInt32()];
-                var texCoord0BufferView = bufferViews[texCoord0Accessor.GetProperty("bufferView").GetInt32()];
-                var indicesBufferView = bufferViews[indicesAccessor.GetProperty("bufferView").GetInt32()];
-
-                // Currently I assume vertex normals are always included in the mesh,
-                // but later on I will make a check to calculate normals on mesh load if it doesn't find any in the file.
-
-                var vertexPositions = ReadFromByteArray<Vector3>(
-                    data.bin[posBufferView.GetProperty("buffer").GetUInt32()],
-                    GetByteAreaData(posAccessor, posBufferView));
-                
-                for (int i = 0; i < vertexPositions.Length; i++)
-                    vertexPositions[i].Z = -vertexPositions[i].Z;
-                
-                var vertexNormals = ReadFromByteArray<Vector3>(
-                    data.bin[nrmBufferView.GetProperty("buffer").GetUInt32()],
-                    GetByteAreaData(nrmAccessor, nrmBufferView));
-                
-                for (int i = 0; i < vertexNormals.Length; i++)
-                    vertexNormals[i].Z = -vertexNormals[i].Z;
-                
-                var vertexTexCoord0 = ReadFromByteArray<Vector2>(
-                    data.bin[texCoord0BufferView.GetProperty("buffer").GetUInt32()],
-                    GetByteAreaData(texCoord0Accessor, texCoord0BufferView));
-                
-                for (int i = 0; i < vertexTexCoord0.Length; i++)
-                    vertexTexCoord0[i].Y = 1.0f - vertexTexCoord0[i].Y;
-
-                var indicesComponentType = indicesAccessor.GetProperty("componentType").GetUInt32();
-
-                uint[] indices = indicesComponentType switch
-                {
-                    5123 => // ushort
-                    [
-                        ..ReadFromByteArray<ushort>(data.bin[indicesBufferView.GetProperty("buffer").GetUInt32()],
-                            GetByteAreaData(indicesAccessor, indicesBufferView))
-                    ],
-
-                    5125 => // uint
-                        ReadFromByteArray<uint>(data.bin[indicesBufferView.GetProperty("buffer").GetUInt32()],
-                            GetByteAreaData(indicesAccessor, indicesBufferView)),
-                    5121 => // byte
-                    [
-                        ..ReadFromByteArray<byte>(data.bin[indicesBufferView.GetProperty("buffer").GetUInt32()],
-                            GetByteAreaData(indicesAccessor, indicesBufferView))
-                    ],
-
-                    _ => [] // Default
-                };
-
-                Material material;
-
-                if (subMesh.TryGetProperty("material", out var matElem))
-                {
-                    int globalMaterialIndex = matElem.GetInt32();
-                    material = LoadGltfMaterial(
-                        root.GetProperty("materials")[globalMaterialIndex],
-                        root,
-                        filePath
-                    );
-                } else {
-                    material = MaterialLoader.DefaultMaterial;
-                }
-
-                subMeshes.Add(new Mesh(BuildVertices(vertexPositions, vertexNormals, vertexTexCoord0), [..indices]) {MaterialIndex = RenderPipeline.RegisterMaterial(material)});
-            }
-
-            parsedEntities.Add(new ModelReturn{
+            results.Add(new ModelReturn {
                 Name = name,
-                Model = new Model([..subMeshes]),
+                Model = new Model(subMeshes.ToArray()),
                 Transform = entityTransform,
                 ParrentName = parentName
             });
-            continue;
-
-            (uint offset, uint count, uint stride) GetByteAreaData(JsonElement accessor, JsonElement bufferView)
-            {
-                uint accessorByteOffset = accessor.TryGetProperty("byteOffset", out var aOff) ? aOff.GetUInt32() : 0;
-                uint bufferViewByteOffset = bufferView.TryGetProperty("byteOffset", out var bvOff) ? bvOff.GetUInt32() : 0;
-                uint totalByteOffset = bufferViewByteOffset + accessorByteOffset;
-                uint count = accessor.GetProperty("count").GetUInt32();
-                uint stride = bufferView.TryGetProperty("byteStride", out var s) ? s.GetUInt32() : 0;
-                return (totalByteOffset, count, stride);
-            }
-            
-            T[] ReadAccessor<T>(JsonElement accessor, JsonElement root, Dictionary<uint, byte[]> buffers) where T : unmanaged
-            {
-                var view = root.GetProperty("bufferViews")[accessor.GetProperty("bufferView").GetInt32()];
-                var buffer = buffers[view.GetProperty("buffer").GetUInt32()];
-                return ReadFromByteArray<T>(buffer, GetByteAreaData(accessor, view));
-            }
         }
 
-        return parsedEntities;
-
-        #region Extractions
-
+        accessors.Clear();
+        buffers.Clear();
+        json.Dispose();
+        return results;
+        
         (JsonDocument? json, Dictionary<uint, byte[]>) ExtractFromGltf()
         {
             string jsonText = File.ReadAllText(filePath);
@@ -331,10 +372,8 @@ public static class ModelLoader
             buffer.Add(0, binData);
             return (doc, buffer);
         }
-
-        #endregion
     }
-
+    
     #region JSON Readers
 
     static Matrix4 ReadMatrix(JsonElement matrixElement)
@@ -353,16 +392,12 @@ public static class ModelLoader
         );
     }
 
-    
     static Vector3 ReadVector3(JsonElement vector3Element)
     {
-        Span<float> vec3 = stackalloc float[3];
-        var i = 0;
-
-        foreach (var v in vector3Element.EnumerateArray())
-            vec3[i++] = v.GetSingle();
-
-        return new Vector3(vec3[0], vec3[1], vec3[2]);
+        float x = vector3Element[0].GetSingle();
+        float y = vector3Element[1].GetSingle();
+        float z = vector3Element[2].GetSingle();
+        return new Vector3(x, y, z);
     }
     
     static Quaternion ReadQuaternion(JsonElement e)
@@ -376,6 +411,53 @@ public static class ModelLoader
 
     #endregion
 
+    #region Binary Readers
+    
+    static unsafe void ReadVec3(AccessorView<byte> view, int index, out float x, out float y, out float z)
+    {
+        int stride = view.Stride == 0 ? sizeof(float) * 3 : view.Stride;
+        fixed (byte* ptr = &view.Buffer[view.Offset + index * stride])
+        {
+            float* f = (float*)ptr;
+            x = f[0];
+            y = f[1];
+            z = f[2];
+        }
+    }
+
+    static unsafe void ReadVec2(AccessorView<byte> view, int index, out float x, out float y)
+    {
+        int stride = view.Stride == 0 ? sizeof(float) * 2 : view.Stride;
+        fixed (byte* ptr = &view.Buffer[view.Offset + index * stride])
+        {
+            float* f = (float*)ptr;
+            x = f[0];
+            y = f[1];
+        }
+    }
+
+    static unsafe uint ReadUInt(AccessorView<byte> view, int index)
+    {
+        int stride = view.Stride != 0 ? view.Stride : sizeof(uint);
+        fixed (byte* ptr = &view.Buffer[view.Offset + index * stride])
+            return *(uint*)ptr;
+    }
+
+    static unsafe ushort ReadUShort(AccessorView<byte> view, int index)
+    {
+        int stride = view.Stride != 0 ? view.Stride : sizeof(ushort);
+        fixed (byte* ptr = &view.Buffer[view.Offset + index * stride])
+            return *(ushort*)ptr;
+    }
+
+    static unsafe byte ReadByte(AccessorView<byte> view, int index)
+    {
+        int stride = view.Stride != 0 ? view.Stride : sizeof(byte);
+        return view.Buffer[view.Offset + index * stride];
+    }
+    
+    #endregion
+    
     static unsafe T[] ReadFromByteArray<T>(byte[] buffer, (uint offset, uint count, uint stride) byteArea) where T : unmanaged
     {
         int elementSize = sizeof(T);

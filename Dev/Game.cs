@@ -10,6 +10,7 @@ using RERL.Components;
 using RERL.Loaders;
 using RERL.ShaderTypes;
 using OpenTK.Graphics.OpenGL4;
+using System.Diagnostics;
 
 namespace Dev;
 
@@ -41,43 +42,6 @@ public class Game : GameWindow
         GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
         GL.Enable(EnableCap.DebugOutput);
         GL.Enable(EnableCap.DebugOutputSynchronous);
-        
-        int count = GL.GetInteger(GetPName.NumExtensions);
-        List<string> extensions = new List<string>();
-
-        for (int i = 0; i < count; i++)
-        {
-            string ext = GL.GetString(StringNameIndexed.Extensions, i);
-            extensions.Add(ext);
-        }
-
-        bool bindlessSupported = extensions.Contains("GL_ARB_bindless_texture");
-        Console.WriteLine(bindlessSupported);
-        
-        int tex = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2D, tex);
-
-        byte[] pixel = { 255, 255, 255, 255 };
-        GL.TexImage2D(TextureTarget.Texture2D, 0,
-            PixelInternalFormat.Rgba8,
-            1, 1, 0,
-            PixelFormat.Rgba, PixelType.UnsignedByte,
-            pixel);
-
-        try
-        {
-            long handle = GL.Arb.GetTextureHandle(tex);
-            Console.WriteLine("Handle: " + handle);
-
-            GL.Arb.MakeTextureHandleResident(handle);
-            Console.WriteLine("Bindless REALLY supported");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Bindless NOT actually supported");
-            Console.WriteLine(ex.Message);
-        }
-
         
         _camera.SetProjectionFovXInDegrees(90, Size.X / (float)Size.Y, 0.1f, 100f);
         CursorState = CursorState.Grabbed;
@@ -156,6 +120,8 @@ public class Game : GameWindow
         //}
 
         {
+            var sw = Stopwatch.StartNew();
+
             var glbSponzaModels = ModelLoader.ParseMesh("./Models/glbSponza/NewSponza_Main_glTF_003.gltf");
             Dictionary<string, Entity> sponzaEntityLookup = new();
 
@@ -173,6 +139,7 @@ public class Game : GameWindow
                 sponzaEntityLookup[m.Name] = ent;
                 MainScene.AddEntity(ent);
             }
+
             foreach (var m in glbSponzaModels.Where(m => !string.IsNullOrWhiteSpace(m.ParrentName))) {
                 if (!sponzaEntityLookup.TryGetValue(m.Name, out var child))
                     continue;
@@ -182,6 +149,9 @@ public class Game : GameWindow
 
                 child.Transform.SetParent(parent.Transform);
             }
+
+            sw.Stop();
+            Logger.Log($"[PERF] Sponza model load time: {sw.ElapsedMilliseconds} ms");
         }
 
         RCS_Core.AddScene(MainScene);
@@ -207,8 +177,11 @@ public class Game : GameWindow
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
+        //Clock Start
         base.OnRenderFrame(args);
         RERL_Core.RenderFrame(args);
+        //Clock End
+        //Log
     }
     
     protected override void OnResize(ResizeEventArgs e)

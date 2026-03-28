@@ -40,7 +40,7 @@ public class Shader
 
         int vertexShader = GL.CreateShader(OpenTK.Graphics.OpenGL4.ShaderType.VertexShader);
         if (vertexShader == -1) throw new Exception("ERR: Vertex Shader could not be created!");
-        GL.ShaderSource(vertexShader, vertexSource);
+        GL.ShaderSource(vertexShader, "#version 460 core\n" + vertexSource); //TODO: Upgrade vertex shader handling.
         GL.CompileShader(vertexShader);
         CheckCompile(vertexShader, "VERTEX", vertexPath);
 
@@ -55,6 +55,7 @@ public class Shader
             case ShaderType.Prelight:
                 finalFragmentSource =
                     "#version 460 core\n" +
+                    "#extension GL_ARB_bindless_texture : require\n" +
                     File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
                     File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
                     fragmentSource; break;

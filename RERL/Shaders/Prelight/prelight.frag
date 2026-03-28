@@ -1,3 +1,5 @@
+#extension GL_EXT_nonuniform_qualifier : enable
+
 in vec3 vColor;
 in vec3 vNormal;
 in vec3 FragPos;
@@ -7,33 +9,33 @@ flat in int materialInstance;
 
 struct Material {
     vec4 baseColor;
-    int albedo;
-    //int normal;
-    //int orm;
+    uvec2 albedoHandle;
+    vec2 _padding; 
 };
 
 layout(std430, binding = 0) buffer MaterialBuffer {
     Material materials[];
 };
 
-uniform sampler2DArray uAlbedoTextures;
-
 void main()
 {
     gNormal = EncodeNormal(normalize(vNormal));
-    //sampler2D albedo = sampler2D(materials[materialInstance].albedoHandle);
-    //vec3 color = texture(albedo, texCoord0).rgb * materials[materialInstance].baseColor;
-    
-    Material material = materials[materialInstance];
+
+    Material material = materials[nonuniformEXT(materialInstance)];
+
     vec3 color;
 
-    if(texture(uAlbedoTextures, vec3(texCoord0, material.albedo)).a <= 0) discard;
-
-    if (material.albedo >= 0)
-        color = texture(uAlbedoTextures, vec3(texCoord0, material.albedo)).rgb * material.baseColor.rgb;
-    else
+    //Check if the handle is non-zero
+    if (material.albedoHandle != uvec2(0u, 0u)) {
+        sampler2D albedo = sampler2D(material.albedoHandle);
+        vec4 tex = texture(albedo, texCoord0);
+        if (tex.a <= 0.0)
+            discard;
+        color = tex.rgb * material.baseColor.rgb;
+    } else {
         color = material.baseColor.rgb;
-    //color = materialInstance == 0 ? vec3(1,0,0) : vec3(0,1,0);
-            
+    }
+    //color = material.baseColor.rgb;
+
     gAlbedo = vec4(color, 1.0);
 }

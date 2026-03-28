@@ -19,11 +19,12 @@ public class ModelRenderer : IComponent, Renderable
     Shader? _shader;
     public Shader? GetShader() => _shader;
     
-    int _vao, _ibo, _vbo, _materialVbo, _ebo;
+    int _vao, _ibo, _vbo, _materialVbo;
     int _singleIndirect, _doubleIndirect;
     int _singleCount, _doubleCount;
     int _materialSSBO;
-    int albedoTextures;
+
+    List<Material> _localMaterials = [];
 
     public bool AutoRegister { get; set; } = true;
 
@@ -55,7 +56,6 @@ public class ModelRenderer : IComponent, Renderable
     public void BuildModelBuffers()
     {
         if (_model is not { } model) { Logger.Warning("ModelRenderer added without a model."); return; }
-
         if (_shader == null) { Logger.Warning("ModelRenderer added without a shader."); return; }
 
         DisposeBuffers();
@@ -63,7 +63,7 @@ public class ModelRenderer : IComponent, Renderable
         // 0. Consolidate Mesh
 
         var verticeCount = _model.SubMeshes.Sum(mesh => mesh.Vertices.Length);
-        var indiceCount = _model.SubMeshes.Sum(mesh => mesh.Indices.Length);
+        var indiceCount  = _model.SubMeshes.Sum(mesh => mesh.Indices.Length);
 
         var combinedVertices = new Vertex[verticeCount];
         var combinedIndices  = new uint[indiceCount];
@@ -87,12 +87,14 @@ public class ModelRenderer : IComponent, Renderable
 
         for (var i = 0; i < _model.SubMeshes.Length; i++) {
             var mesh = _model.SubMeshes[i];
-            Array.Copy(mesh.Vertices, (long)0, combinedVertices, vertexOffset, mesh.Vertices.Length);
+            Array.Copy(mesh.Vertices, 0, combinedVertices, vertexOffset, mesh.Vertices.Length);
             foreach (var index in mesh.Indices) combinedIndices[indexWritePos++] = index + (uint)vertexOffset;
             for (var v = 0; v < mesh.Vertices.Length; v++)
                 materialIndexes[vertexOffset + v] = globalToLocalMaterials[mesh.MaterialIndex];
             vertexOffset += mesh.Vertices.Length;
         }
+
+        _localMaterials = materialArray;
 
         // 1. Create VAO/IBO/VBO
 
@@ -131,18 +133,13 @@ public class ModelRenderer : IComponent, Renderable
         GL.EnableVertexAttribArray(2);
         GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, stride, 24);
 
-        // Tangent (location = 3) // I don't have this yet.
-        //GL.EnableVertexAttribArray(3);
-        //GL.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, 32);
-        
-        // Upload material indexes
+        // Material Indexes (location = 4)
         GL.BindBuffer(BufferTarget.ArrayBuffer, _materialVbo);
         GL.BufferData(BufferTarget.ArrayBuffer,
             materialIndexes.Length * sizeof(int),
             materialIndexes,
             BufferUsageHint.StaticDraw);
         
-        // Material Indexes (location = 4)
         GL.EnableVertexAttribArray(4);
         GL.VertexAttribIPointer(4, 1, VertexAttribIntegerType.Int, sizeof(int), IntPtr.Zero);
         
@@ -163,7 +160,7 @@ public class ModelRenderer : IComponent, Renderable
                 InstanceCount = 1,
                 FirstIndex = runningIndexOffset,
                 BaseVertex = 0,
-                BaseInstance = (uint)i
+                BaseInstance = 0
             };
             
             if (RenderPipeline.GetIndexedMaterial(mesh.MaterialIndex).DoubleSided)
@@ -179,29 +176,20 @@ public class ModelRenderer : IComponent, Renderable
         _singleIndirect = UploadIndirect(singleSided);
         _doubleIndirect = UploadIndirect(doubleSided);
         
-        // 5. Create dummy material SSBO
+        // 5. Create material SSBO (bindless handles as uvec2 via GPUMaterial)
+
         _materialSSBO = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _materialSSBO);
-        
-        Dictionary<int, int> textureToLayer = new();
-        List<int> albedoTextures = [];
+
         var materials = new GPUMaterial[materialArray.Count];
 
         for (int i = 0; i < materialArray.Count; i++)
         {
-            var texture = materialArray[i].AlbedoTexture;
-            var layer = -1;
+            ulong h = materialArray[i].AlbedoHandle;
 
-            var valid = texture > 0 && IsValidTexture(texture);
-
-            if (valid && !textureToLayer.TryGetValue(texture, out layer)) {
-                layer = albedoTextures.Count;
-                albedoTextures.Add(texture);
-                textureToLayer[texture] = layer;
-            }
-
-            materials[i].albedo = layer;
-            materials[i].BaseColor = new Vector4(materialArray[i].BaseAlbedo, 1.0f);
+            materials[i].BaseColor      = new Vector4(materialArray[i].BaseAlbedo, 1.0f);
+            materials[i].AlbedoHandleLo = (uint)(h & 0xFFFFFFFF);
+            materials[i].AlbedoHandleHi = (uint)(h >> 32);
         }
         
         GL.BufferData(
@@ -212,39 +200,6 @@ public class ModelRenderer : IComponent, Renderable
         );
 
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _materialSSBO);
-        
-        int width = 0, height = 0;
-
-        if (albedoTextures.Count > 0) {
-            var firstTex = albedoTextures[0];
-
-            GL.BindTexture(TextureTarget.Texture2D, firstTex);
-            GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureWidth, out width);
-            GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out height);
-        }
-
-        if (width <= 0 || height <= 0) {
-            this.albedoTextures = 0;
-            return;
-        }
-        
-        this.albedoTextures = GL.GenTexture();
-        GL.BindTexture(TextureTarget.Texture2DArray, this.albedoTextures);
-        
-        //int.Max(1 + (int)Math.Floor(double.Log2(int.Max(width, height))), 4)
-        GL.TexStorage3D(
-            TextureTarget3d.Texture2DArray,
-            1,
-            SizedInternalFormat.Srgb8Alpha8,
-            width, height,
-            albedoTextures.Count
-        );
-
-        for (int i = 0; i < albedoTextures.Count; i++) {
-            GL.CopyImageSubData(albedoTextures[i], ImageTarget.Texture2D, 0, 0, 0, 0, this.albedoTextures,
-                ImageTarget.Texture2DArray, 0, 0, 0, i, width, height, 1);
-        }
-        GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
         
         return;
         
@@ -262,46 +217,21 @@ public class ModelRenderer : IComponent, Renderable
 
             return buffer;
         }
-        
-        bool IsValidTexture(int handle)
-        {
-            if (handle <= 0)
-                return false;
-
-            GL.BindTexture(TextureTarget.Texture2D, handle);
-
-            GL.GetTexLevelParameter(TextureTarget.Texture2D, 0,
-                GetTextureParameter.TextureWidth, out int w);
-            GL.GetTexLevelParameter(TextureTarget.Texture2D, 0,
-                GetTextureParameter.TextureHeight, out int h);
-
-            return w > 0 && h > 0;
-        }
     }
 
     public void Render(int instanceCount = 1)
     {
         if (_model is not { } model) { Logger.Warning("ModelRenderer added without a model."); return; }
-
         if (_shader == null) { Logger.Warning("ModelRenderer added without a shader."); return; }
         
         _shader.Use();
         _shader.ApplyUniform("uModel", Owner.Transform.WorldMatrix, false);
 
-        if (albedoTextures != 0)
-        {
-            GL.ActiveTexture(TextureUnit.Texture0);
-            GL.BindTexture(TextureTarget.Texture2DArray, albedoTextures);
-            _shader.ApplyUniform("uAlbedoTextures", 0);
-        }
-        
         GL.BindVertexArray(_vao);
 
-        // Bind SSBO
         GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _materialSSBO);
 
         if (_singleCount > 0) {
-            // PASS 1 single-sided
             GL.Enable(EnableCap.CullFace);
             GL.BindBuffer(BufferTarget.DrawIndirectBuffer, _singleIndirect);
             GL.MultiDrawElementsIndirect(
@@ -314,7 +244,6 @@ public class ModelRenderer : IComponent, Renderable
         }
 
         if (_doubleCount > 0) {
-            // PASS 2 double-sided
             GL.Disable(EnableCap.CullFace);
             GL.BindBuffer(BufferTarget.DrawIndirectBuffer, _doubleIndirect);
             GL.MultiDrawElementsIndirect(
@@ -325,6 +254,32 @@ public class ModelRenderer : IComponent, Renderable
                 0
             );
         }
+    }
+    
+    public void RebuildMaterialSSBO()
+    {
+        if (_localMaterials.Count == 0 || _materialSSBO == 0) return;
+
+        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _materialSSBO);
+
+        var materials = new GPUMaterial[_localMaterials.Count];
+
+        for (int i = 0; i < _localMaterials.Count; i++)
+        {
+            var mat = _localMaterials[i];
+            ulong h = mat.AlbedoHandle;
+
+            materials[i].BaseColor      = new Vector4(mat.BaseAlbedo, 1.0f);
+            materials[i].AlbedoHandleLo = (uint)(h & 0xFFFFFFFF);
+            materials[i].AlbedoHandleHi = (uint)(h >> 32);
+        }
+
+        GL.BufferData(
+            BufferTarget.ShaderStorageBuffer,
+            materials.Length * Marshal.SizeOf<GPUMaterial>(),
+            materials,
+            BufferUsageHint.StaticDraw
+        );
     }
 
     public void Load() {}

@@ -29,6 +29,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="DirectXTexNet" Version="1.0.7" />
         <PackageReference Include="OpenTK" Version="4.9.4" />
         <PackageReference Include="OpenTK.Audio.OpenAL" Version="4.9.4" />
         <PackageReference Include="OpenTK.Compute" Version="4.9.4" />
@@ -40,6 +41,7 @@
         <PackageReference Include="OpenTK.Windowing.Common" Version="4.9.4" />
         <PackageReference Include="OpenTK.Windowing.Desktop" Version="4.9.4" />
         <PackageReference Include="OpenTK.Windowing.GraphicsLibraryFramework" Version="4.9.4" />
+        <PackageReference Include="StbDxtSharp" Version="1.10.3" />
         <PackageReference Include="StbImageSharp" Version="2.30.15" />
     </ItemGroup>
 
@@ -57,14 +59,21 @@
         <Content Include="Shaders\**\*">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
             <Pack>true</Pack>
-            <PackagePath>contentFiles\any\any\Shaders\</PackagePath>
+            <PackagePath>RocketEngine\Shaders\</PackagePath>
             <CopyToOutput>true</CopyToOutput>
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
         <Content Include="Models\**\*">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
             <Pack>true</Pack>
-            <PackagePath>contentFiles\any\any\Models\</PackagePath>
+            <PackagePath>RocketEngine\Models\</PackagePath>
+            <CopyToOutput>true</CopyToOutput>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <Content Include="Tools\**\*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Pack>true</Pack>
+            <PackagePath>RocketEngine\Tools\</PackagePath>
             <CopyToOutput>true</CopyToOutput>
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>

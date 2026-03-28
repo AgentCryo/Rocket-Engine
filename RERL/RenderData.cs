@@ -38,19 +38,21 @@ public static class RenderData
     [StructLayout(LayoutKind.Sequential)]
     public struct GPUMaterial
     {
-        public Vector4 BaseColor;
-        public int albedo;
-        //public ulong normalHandle;
-        //public ulong ormHandle;
-        Vector3 _padding;
+        public Vector4 BaseColor;    // 16
+        public uint AlbedoHandleLo;  // 4
+        public uint AlbedoHandleHi;  // 4
+        public Vector2 Padding;      // 8 -> total 32
     }
-    
+
+
     public static GPUMaterial ToGpu(Material mat)
     {
+        ulong h = mat.AlbedoHandle;
         return new GPUMaterial
         {
-            BaseColor = new Vector4(mat.BaseAlbedo, 1.0f),
-            albedo    = -1
+            BaseColor    = new Vector4(mat.BaseAlbedo, 1.0f),
+            AlbedoHandleLo  = (uint)(h & 0xFFFFFFFF),
+            AlbedoHandleHi  = (uint)(h >> 32),
         };
     }
     

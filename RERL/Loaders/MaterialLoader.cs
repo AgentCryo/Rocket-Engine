@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using RCS;
 using static RERL.RenderData;
@@ -14,12 +15,12 @@ public static class MaterialLoader
         public Vector3 BaseAlbedo = Vector3.One;
         public float BaseRoughness = 0.5f;
         public float BaseMetallic  = 0.15f;
-        public int AlbedoTexture;
+        public ulong AlbedoHandle = 0;
     }
     
     public static Material DefaultMaterial = new Material("_re_Default")
     {
-        AlbedoTexture = -1,
+        AlbedoHandle = 0,
         DoubleSided = true,
     };
     
@@ -46,10 +47,10 @@ public static class MaterialLoader
 
         if (pbr.TryGetProperty("metallicFactor", out var m))
             mat.BaseMetallic = m.GetSingle();
-        
-        if (pbr.TryGetProperty("baseColorTexture", out var ctx))
-            mat.AlbedoTexture = ImageLoader.LoadTexture(Path.Combine(Path.GetDirectoryName(gltfFilePath), root.GetProperty("images")[root.GetProperty("textures")[ctx.GetProperty("index").GetInt32()].GetProperty("source").GetInt32()].GetProperty("uri").GetString()), TextureType.Albedo);
-        
+
+        if (pbr.TryGetProperty("baseColorTexture", out var ctx)) 
+            mat.AlbedoHandle =  ImageLoader.GetBindlessHandle(ImageLoader.LoadTexture(Path.Combine(Path.GetDirectoryName(gltfFilePath), root.GetProperty("images")[root.GetProperty("textures")[ctx.GetProperty("index").GetInt32()].GetProperty("source").GetInt32()].GetProperty("uri").GetString())));
+
         return mat;
     }
 }

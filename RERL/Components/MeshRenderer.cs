@@ -96,6 +96,11 @@ public class MeshRenderer : IComponent, Renderable
         return true;
     }
 
+    public void RebuildMaterialSSBO()
+    {
+        
+    }
+
     /// <summary>
     /// Renders the mesh using the attached shader and the owner's Transform.
     /// </summary>
