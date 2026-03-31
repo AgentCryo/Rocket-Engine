@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using OpenTK.Mathematics;
 using RCS;
+using RCS.Components;
 using static RERL.Loaders.MaterialLoader;
 using static RERL.RenderData;
 using static RERL.RERL_Core;
@@ -204,6 +205,7 @@ public static class ModelLoader
     public static List<ModelReturn> ParseGltf(string filePath, bool isGlb)
     {
         Logger.Log("ParseGltf CALLED");
+        MaterialCache.Clear();
 
         var (json, buffers) = isGlb ? ExtractFromGlb() : ExtractFromGltf();
         if (json == null) return [];

@@ -1,0 +1,21 @@
+struct Pixel {
+    vec4 color;
+};
+
+layout(std430, binding = 1) buffer TestBuffer {
+    Pixel pixels[];
+};
+
+void main()
+{
+    const ivec2 size = ivec2(1920, 1080);
+
+    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    int index = pixel.y * size.x + pixel.x;
+    
+    vec4 norm = GetNormal();
+    vec3 color = GetColor();
+    
+    gNormal = norm;
+    gAlbedo = pixels[index].color;
+}

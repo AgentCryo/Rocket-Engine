@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-using OpenTK.Windowing.Desktop;
+    using OpenTK.Windowing.Desktop;
 using RCS;
 using RERL;
 using RERL.Components;
@@ -47,16 +47,16 @@ public class Game : GameWindow
         CursorState = CursorState.Grabbed;
         _cameraController.InitializeCameraController(_camera, KeyboardState, MouseState, this);
         
-        _fadeTest = new Shader().AttachShader(Shader.DefaultVert, "./Shaders/FadeTest/fadeTest.frag", Shader.ShaderType.Prelight);
+        _fadeTest = new Shader().AttachGraphicsShader(Shader.DefaultVert, "./Shaders/FadeTest/fadeTest.frag", Shader.ShaderType.Prelight);
         RenderPipeline.RegisterShader(_fadeTest);
         
-        _mengerSpongeObjectShader = new Shader().AttachShader(Shader.DefaultVert, "./Shaders/MengerSpongeObject/mengerSpongeObject.frag", Shader.ShaderType.Shader);
+        _mengerSpongeObjectShader = new Shader().AttachGraphicsShader(Shader.DefaultVert, "./Shaders/MengerSpongeObject/mengerSpongeObject.post", Shader.ShaderType.Shader);
         _mengerSpongeObjectShader.RegisterAutoUniform("cameraPos", () => _cameraController.GetPosition());
         _mengerSpongeObjectShader.RegisterAutoUniform("cameraRot", () => _cameraController.GetOrientation());
         _mengerSpongeObjectShader.RegisterAutoUniform("screenSize", () => Size.ToVector2());
         RenderPipeline.RegisterShader(_mengerSpongeObjectShader);
         
-        _testingPostProcess = new PostProcess().AttachPostProcessShader("./Shaders/TestingPostProcess/testingPostProcess.frag", this);
+        _testingPostProcess = new PostProcess().AttachPostProcessShader("./Shaders/TestingPostProcess/testingPostProcess.post", this);
         RenderPipeline.RegisterPostProcess(_testingPostProcess);
         
         RERL_Core.SetCamera(_camera);
@@ -122,7 +122,7 @@ public class Game : GameWindow
         {
             var sw = Stopwatch.StartNew();
 
-            var glbSponzaModels = ModelLoader.ParseMesh("./Models/glbSponza/NewSponza_Main_glTF_003.gltf");
+            var glbSponzaModels = ModelLoader.ParseMesh("./Models/Sponza/NewSponza_Main_glTF_003.gltf");
             Dictionary<string, Entity> sponzaEntityLookup = new();
 
             foreach (var m in glbSponzaModels) {
@@ -151,7 +151,74 @@ public class Game : GameWindow
             }
 
             sw.Stop();
-            Logger.Log($"[PERF] Sponza model load time: {sw.ElapsedMilliseconds} ms");
+            Logger.Log($"[PERF] Sponza Curtains model load time: {sw.ElapsedMilliseconds} ms");
+        }
+        {
+            var sw = Stopwatch.StartNew();
+
+            var glbSponzaModels = ModelLoader.ParseMesh("./Models/SponzaCurtains/NewSponza_Curtains_glTF.gltf");
+            Dictionary<string, Entity> sponzaEntityLookup = new();
+
+            foreach (var m in glbSponzaModels) {
+                var ent = new Entity(m.Name);
+
+                if (m.Model != null) {
+                    ent.AddComponent(new ModelRenderer()
+                        .AttachModel(m.Model)
+                        .AttachShader(RERL_Core.GetPrelightShader()));
+                }
+
+                ent.Transform.SetTransform(m.Transform);
+
+                sponzaEntityLookup[m.Name] = ent;
+                MainScene.AddEntity(ent);
+            }
+
+            foreach (var m in glbSponzaModels.Where(m => !string.IsNullOrWhiteSpace(m.ParrentName))) {
+                if (!sponzaEntityLookup.TryGetValue(m.Name, out var child))
+                    continue;
+
+                if (!sponzaEntityLookup.TryGetValue(m.ParrentName, out var parent))
+                    continue;
+
+                child.Transform.SetParent(parent.Transform);
+            }
+
+            sw.Stop();
+            Logger.Log($"[PERF] Sponza Curtains model load time: {sw.ElapsedMilliseconds} ms");
+        }
+        {
+            var sw = Stopwatch.StartNew();
+            var glbSponzaModels = ModelLoader.ParseMesh("./Models/SponzaIvy/NewSponza_IvyGrowth_glTF.gltf");
+            Dictionary<string, Entity> sponzaEntityLookup = new();
+
+            foreach (var m in glbSponzaModels) {
+                var ent = new Entity(m.Name);
+
+                if (m.Model != null) {
+                    ent.AddComponent(new ModelRenderer()
+                        .AttachModel(m.Model)
+                        .AttachShader(RERL_Core.GetPrelightShader()));
+                }
+
+                ent.Transform.SetTransform(m.Transform);
+
+                sponzaEntityLookup[m.Name] = ent;
+                MainScene.AddEntity(ent);
+            }
+
+            foreach (var m in glbSponzaModels.Where(m => !string.IsNullOrWhiteSpace(m.ParrentName))) {
+                if (!sponzaEntityLookup.TryGetValue(m.Name, out var child))
+                    continue;
+
+                if (!sponzaEntityLookup.TryGetValue(m.ParrentName, out var parent))
+                    continue;
+
+                child.Transform.SetParent(parent.Transform);
+            }
+
+            sw.Stop();
+            Logger.Log($"[PERF] Sponza Ivy model load time: {sw.ElapsedMilliseconds} ms");
         }
 
         RCS_Core.AddScene(MainScene);

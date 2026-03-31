@@ -1,5 +1,6 @@
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using RCS;
 
 namespace RERL.ShaderTypes;
 
@@ -13,15 +14,17 @@ public class Shader
     {
         Shader,
         Prelight,
-        PostProcess
+        PostProcess,
+        Compute
     }
     
-    public const string DefaultVert = "./Shaders/Default/default.vert";
-    public const string DefaultFrag = "./Shaders/Default/default.frag";
+    public const string DefaultVert = "./Shaders/Templates/Default/default.vert";
+    public const string DefaultFrag = "./Shaders/Templates/Default/default.frag";
+    public const string DefaultPostProcessVert = "./Shaders/Templates/DefaultPostProcess/defaultPostProcess.vert";
     
-    int Handle { get; set; }
-    readonly Dictionary<string, int> _uniformCache = new();
-    readonly Dictionary<string, Func<object?>> _autoUniforms = new();
+    internal int Handle { get; set; }
+    internal readonly Dictionary<string, int> _uniformCache = new();
+    internal readonly Dictionary<string, Func<object?>> _autoUniforms = new();
 
     public void Use() => GL.UseProgram(Handle);
     public int GetHandle() => Handle;
@@ -33,8 +36,11 @@ public class Shader
     /// <param name="vertexPath">Path to the vertex shader source file.</param>
     /// <param name="fragmentPath">Path to the fragment shader source file.</param>
     /// <returns>The current <see cref="Shader"/> instance for chaining.</returns>
-    public Shader AttachShader(string vertexPath, string fragmentPath, ShaderType shaderType)
+    public virtual Shader AttachGraphicsShader(string vertexPath, string fragmentPath, ShaderType shaderType)
     {
+        if (shaderType == ShaderType.Compute)
+            Logger.Error($"Compute shaders must use the ComputeShader class, not Shader. Offending files: {vertexPath}, {fragmentPath}");
+        
         string vertexSource = File.ReadAllText(vertexPath);
         string fragmentSource = File.ReadAllText(fragmentPath);
 
@@ -93,7 +99,7 @@ public class Shader
         return this;
     }
 
-    void CheckCompile(int shader, string type, string shaderPath)
+    internal void CheckCompile(int shader, string type, string shaderPath)
     {
         GL.GetShader(shader, ShaderParameter.CompileStatus, out int status);
         if (status == 0)
@@ -106,7 +112,7 @@ public class Shader
         }
     }
 
-    void CheckLink(int program)
+    internal void CheckLink(int program)
     {
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int status);
         if (status == 0) {
@@ -115,7 +121,7 @@ public class Shader
         }
     }
 
-    int GetUniformLocation(string name)
+    internal int GetUniformLocation(string name)
     {
         if (_uniformCache.TryGetValue(name, out int loc))
             return loc;

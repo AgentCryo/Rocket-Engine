@@ -1,16 +1,15 @@
 using OpenTK.Mathematics;
-using RCS.Components;
 using Quaternion = OpenTK.Mathematics.Quaternion;
 using Vector3 = OpenTK.Mathematics.Vector3;
 
-namespace RCS;
+namespace RCS.Components;
 
 /// <summary>
 /// A built‑in component that provides position, rotation, scale,
 /// hierarchical parenting, and world/local matrix calculations.
 /// </summary>
 /// <param name="position">The initial position of the transform.</param>
-/// <param name="rotation">The initial rotation of the transform, in degrees.</param>
+/// <param name="rotation">The initial rotation of the transform as a quaternion.</param>
 /// <param name="scale">The initial scale of the transform.</param>
 public class Transform(Vector3 position, Quaternion rotation, Vector3 scale) : IComponent
 {

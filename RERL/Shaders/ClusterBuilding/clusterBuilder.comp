@@ -1,0 +1,35 @@
+layout(local_size_x = 16, local_size_y = 16) in;
+
+struct Pixel {
+    vec4 color;
+};
+
+layout(std430, binding = 1) buffer TestBuffer {
+    Pixel pixels[];
+};
+
+void main()
+{
+    const ivec2 size = ivec2(1920, 1080);
+
+    uint gx = gl_WorkGroupID.x;
+    uint gy = gl_WorkGroupID.y;
+
+    uint lx = gl_LocalInvocationID.x;
+    uint ly = gl_LocalInvocationID.y;
+
+    uint index = gl_GlobalInvocationID.y * size.x + gl_GlobalInvocationID.x;
+
+    vec2 wgNorm = vec2(gx, gy) / vec2(gl_NumWorkGroups.xy);
+
+    vec2 localNorm = vec2(lx, ly) / vec2(gl_WorkGroupSize.xy);
+
+    vec3 color =
+        vec3(wgNorm, 0.5) +                // big tile color
+        vec3(localNorm * 0.5, 0.0);        // inner swirl
+
+    float noise = fract(sin(dot(vec2(gx, gy), vec2(12.9898, 78.233))) * 43758.5453);
+    color += noise * 0.1;
+
+    pixels[index].color = vec4(color, 1.0);
+}

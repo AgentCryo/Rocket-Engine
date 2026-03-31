@@ -91,7 +91,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Shaders\DefaultPrelight\" />
+      <Folder Include="Shaders\ClusterBuilding\" />
+      <Folder Include="Shaders\Templates\" />
     </ItemGroup>
 
     <PropertyGroup Condition="'$(Configuration)'=='EngineDev'">

@@ -22,12 +22,33 @@ public static class RenderPipeline
     
     internal static readonly List<Material> Materials = [];
 
+
+    #region Temp
+
+    static PostProcess clusterBuilderDebug;
+    static Compute clusterBuilder;
+
+    #endregion
+
     internal static void InitializeRenderPipeline()
     {
         GeometryFrame = new GBuffer(RERL_Core.Window.Size);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, GeometryFrame.GetFBO());
         
         _postProcessingQuad_VAO = GL.GenVertexArray();
+
+        #region Temp
+
+        int testSSBO = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, testSSBO);
+        GL.BufferData(BufferTarget.ShaderStorageBuffer, 1920 * 1080 * 16, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, testSSBO);
+
+        clusterBuilderDebug = new PostProcess().AttachPostProcessShader("./Shaders/ClusterBuilding/clusterBuilderDebug.post", RERL_Core.Window);
+        RegisterPostProcess(clusterBuilderDebug);
+        clusterBuilder = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterBuilder.comp");
+
+        #endregion
     }
 
     internal static void RenderPipelineFrame(FrameEventArgs args)
@@ -49,6 +70,14 @@ public static class RenderPipeline
             foreach (var mr in renderables)
                 mr.Render();
         }
+
+        #region Engine Computes
+
+        clusterBuilder.Use();
+        clusterBuilder.Dispatch(1920 / 16, 1080 / 16, 1);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+
+        #endregion
         
         GL.DepthMask(false);
         GL.Disable(EnableCap.DepthTest);
