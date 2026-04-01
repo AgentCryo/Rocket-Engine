@@ -9,8 +9,6 @@ namespace RERL.ShaderTypes;
 /// </summary>
 public class PostProcess : Shader
 {
-    GBuffer _gbuffer;
-
     /// <summary>
     /// Loads and attaches the post‑processing shader, and creates an internal G‑Buffer
     /// used to store the output of this post‑process pass.
@@ -20,8 +18,6 @@ public class PostProcess : Shader
     /// <returns>The current <see cref="PostProcess"/> instance for chaining.</returns>
     public PostProcess AttachPostProcessShader(string postProcessFragmentPath, GameWindow window)
     {
-        _gbuffer = new GBuffer(window.Size);
-
         AttachGraphicsShader(DefaultPostProcessVert, postProcessFragmentPath, ShaderType.PostProcess);
         
         return this;
@@ -34,10 +30,9 @@ public class PostProcess : Shader
     /// <param name="VAO">The VAO containing a full‑screen triangle.</param>
     /// <param name="renderToScreen">If true, the result is also drawn to the screen.</param>
     /// <returns>The internal G‑Buffer containing the post‑processed output.</returns>
-    public GBuffer RenderPostProcess(GBuffer gbuffer, int VAO, bool renderToScreen)
+    public void RenderPostProcess(GBuffer gbuffer, int VAO, bool renderToScreen)
     {
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, renderToScreen ? 0 : _gbuffer.GetFBO());
-        _gbuffer.Clear();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, renderToScreen ? 0 : gbuffer.GetFBO());
 
         Use();
         ApplyAutoUniforms();
@@ -50,14 +45,16 @@ public class PostProcess : Shader
         GL.BindTexture(TextureTarget.Texture2D, gbuffer.Normal);
         ApplyUniform("uNormal", 1);
         
+        GL.ActiveTexture(TextureUnit.Texture2);
+        GL.BindTexture(TextureTarget.Texture2D, gbuffer.Depth);
+        ApplyUniform("uDepth", 2);
+        
         GL.BindVertexArray(VAO);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
-        if (!renderToScreen) return _gbuffer;
+        if (!renderToScreen) return;
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.BindVertexArray(VAO);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-
-        return _gbuffer;
     }
 }

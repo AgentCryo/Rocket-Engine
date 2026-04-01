@@ -29,13 +29,13 @@ public static class ModelLoader
         public string ParrentName;
     }
     
-    //public const string Cube = @"./Models/Cube.obj";
-    //public const string Icosahedron = @"./Models/Icosahedron.obj";
-    //public const string UVSphere = @"./Models/UVSphere.obj";
-    //
-    //public static Mesh CubeMesh => ParseObj(Cube)[0].SubMeshes[0];
-    //public static Mesh IcosahedronMesh => ParseObj(Icosahedron)[0].SubMeshes[0];
-    //public static Mesh UVSphereMesh => ParseObj(UVSphere)[0].SubMeshes[0];
+    public const string Cube = @"./Models/Cube.glb";
+    public const string Icosahedron = @"./Models/Icosahedron.glb";
+    public const string UVSphere = @"./Models/UVSphere.glb";
+    
+    public static Model CubeMesh => ParseMesh(Cube)[0].Model;
+    public static Model IcosahedronMesh => ParseMesh(Icosahedron)[0].Model;
+    public static Model UVSphereMesh => ParseMesh(UVSphere)[0].Model;
 
     /// <summary>
     /// Parses a mesh file based on its extension.
@@ -184,7 +184,7 @@ public static class ModelLoader
 
         // Material
         int matIndex = -1;
-        if (!primitive.TryGetProperty("material", out var matElem)) return new Mesh(vertices, indices) { MaterialIndex = matIndex };
+        if (!primitive.TryGetProperty("material", out var matElem)) return new Mesh(vertices, indices) { MaterialIndex = RenderPipeline.RegisterMaterial(DefaultMaterial) };
         int gltfMatIndex = matElem.GetInt32();
 
         if (MaterialCache.TryGetValue(gltfMatIndex, out matIndex))

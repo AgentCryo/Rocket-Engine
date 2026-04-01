@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
-    using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.Desktop;
 using RCS;
 using RERL;
 using RERL.Components;
@@ -11,6 +11,7 @@ using RERL.Loaders;
 using RERL.ShaderTypes;
 using OpenTK.Graphics.OpenGL4;
 using System.Diagnostics;
+using bottlenoselabs.C2CS.Runtime;
 
 namespace Dev;
 
@@ -18,6 +19,7 @@ namespace Dev;
 
 public class Game : GameWindow
 {
+    
     Camera _camera = new Camera();
     CameraController _cameraController = new CameraController();
     
@@ -51,9 +53,10 @@ public class Game : GameWindow
         RenderPipeline.RegisterShader(_fadeTest);
         
         _mengerSpongeObjectShader = new Shader().AttachGraphicsShader(Shader.DefaultVert, "./Shaders/MengerSpongeObject/mengerSpongeObject.post", Shader.ShaderType.Shader);
+        _mengerSpongeObjectShader.Use();
         _mengerSpongeObjectShader.RegisterAutoUniform("cameraPos", () => _cameraController.GetPosition());
         _mengerSpongeObjectShader.RegisterAutoUniform("cameraRot", () => _cameraController.GetOrientation());
-        _mengerSpongeObjectShader.RegisterAutoUniform("screenSize", () => Size.ToVector2());
+        _mengerSpongeObjectShader.ApplyUniform("screenSize", Size.ToVector2());
         RenderPipeline.RegisterShader(_mengerSpongeObjectShader);
         
         _testingPostProcess = new PostProcess().AttachPostProcessShader("./Shaders/TestingPostProcess/testingPostProcess.post", this);
@@ -63,62 +66,36 @@ public class Game : GameWindow
         RERL_Core.SetGameWindow(this);
         RERL_Core.Load();
         
-        
         MainScene = new RCS_Core.Scene("Main");
-
-        //// Cube
-        //{
-        //    var cube = new Entity("Cube")
-        //        .AddComponent(new MeshRenderer()
-        //            .AttachMesh(ModelLoader.CubeMesh)
-        //            .AttachShader(_fadeTest))
-        //        .AddComponent<CubeComponent>();
-//
-        //    cube.Transform.Position = new Vector3(0, 0.0f, 0);
-        //    MainScene.AddEntity(cube);
-        //}
-//
-        //// Menger Sponge Object
-        //{
-        //    var menger = new Entity("MengerSpongeObject")
-        //        .AddComponent(new MeshRenderer()
-        //            .AttachMesh(ModelLoader.CubeMesh)
-        //            .AttachShader(_mengerSpongeObjectShader));
-//
-        //    menger.Transform.Position = new Vector3(5, 0.0f, 0);
-        //    menger.Transform.Scale = new Vector3(2.5f, 2.5f, 2.5f);
-        //    MainScene.AddEntity(menger);
-//
-        //    _mengerSpongeObjectShader.RegisterAutoUniform("objectPos", () => menger.Transform.Position);
-        //    _mengerSpongeObjectShader.RegisterAutoUniform(
-        //        "objectRot",
-        //        () => menger.Transform.Rotation
-        //    );
-        //    _mengerSpongeObjectShader.RegisterAutoUniform("objectScale", () => menger.Transform.Scale);
-        //}
-//
-        //// Icosahedron
-        //{
-        //    var icosahedron = new Entity("Icosahedron")
-        //        .AddComponent(new PongComponent(5, 5))
-        //        .AddComponent(new MeshRenderer()
-        //            .AttachMesh(ModelLoader.IcosahedronMesh)
-        //            .AttachShader(RERL_Core.GetPrelightShader()));
-//
-        //    MainScene.AddEntity(icosahedron);
-        //}
-        //
-        //// Sphere
-        //{
-        //    var sphere = new Entity("Sphere")
-        //        .AddComponent(new MeshRenderer()
-        //            .AttachMesh(ModelLoader.UVSphereMesh)
-        //            .AttachShader(RERL_Core.GetPrelightShader()));
-//
-        //    sphere.Transform.SetPosition((0, 1, 0));
-        //    MainScene.AddEntity(sphere);
-        //}
-
+        
+        // Pong Ico Object
+        {
+            MainScene.AddEntity(new Entity("PongIco")
+                .AddComponent(new ModelRenderer()
+                    .AttachModel(ModelLoader.IcosahedronMesh)
+                    .AttachShader(RERL_Core.GetPrelightShader()))
+                .AddComponent(new PongComponent(20, 10))
+            );
+        }
+        
+        // Menger Sponge Object
+        {
+            var menger = new Entity("MengerSpongeObject")
+                .AddComponent(new ModelRenderer()
+                    .AttachModel(ModelLoader.CubeMesh)
+                    .AttachShader(_mengerSpongeObjectShader));
+        
+            menger.Transform.Position = new Vector3(5, 2.5f, 0);
+            menger.Transform.Scale = new Vector3(2.5f, 2.5f, 2.5f);
+            MainScene.AddEntity(menger);
+        
+            _mengerSpongeObjectShader.RegisterAutoUniform("objectPos", () => menger.Transform.Position);
+            _mengerSpongeObjectShader.RegisterAutoUniform(
+                "objectRot",
+                () => menger.Transform.Rotation
+            );
+            _mengerSpongeObjectShader.RegisterAutoUniform("objectScale", () => menger.Transform.Scale);
+        }
         {
             var sw = Stopwatch.StartNew();
 
@@ -231,30 +208,21 @@ public class Game : GameWindow
     {
         _cameraController.UpdateInput(args.Time);
         RCS_Core.UpdateActiveScene(args.Time);
-
-        //var menger = RCS_Core.GetActiveScene().GetEntity("MengerSpongeObject");
-        //_time += (float)args.Time / 10f;
-//
-        //menger.Transform.Position.X = float.Sin(_time) * 10f;
-        //menger.Transform.Position.Y = float.Cos(_time) * 10f;
-        //menger.Transform.EulerAngles = new Vector3(0, _time * 31f, 0);
-
         base.OnUpdateFrame(args);
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
     {
-        //Clock Start
         base.OnRenderFrame(args);
         RERL_Core.RenderFrame(args);
-        //Clock End
-        //Log
     }
     
     protected override void OnResize(ResizeEventArgs e)
     {
         base.OnResize(e);
         _camera.SetProjectionFovXInDegrees(90, Size.X / (float)Size.Y, 0.1f, 100f);
+        _mengerSpongeObjectShader.Use();
+        _mengerSpongeObjectShader.ApplyUniform("screenSize", Size.ToVector2());
     }
     
     static void OnDebugMessage(

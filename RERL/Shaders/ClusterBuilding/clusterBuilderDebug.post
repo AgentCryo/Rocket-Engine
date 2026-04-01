@@ -1,21 +1,58 @@
-struct Pixel {
-    vec4 color;
+struct Cluster {
+    vec3 minPoint;
+    uint offset;
+    vec3 maxPoint;
+    uint count;
 };
 
-layout(std430, binding = 1) buffer TestBuffer {
-    Pixel pixels[];
+layout(std430, binding = 1) buffer clustersSSBO {
+    Cluster clusters[];
 };
+
+uniform ivec3 gridSize;
+uniform ivec2 screenDimensions;
+
+vec3 hashColor(uint i)
+{
+    // simple repeatable pseudo-random color from index
+    return vec3(
+        fract(sin(float(i) * 17.0) * 43758.5453),
+        fract(sin(float(i) * 31.0) * 24634.6345),
+        fract(sin(float(i) * 47.0) * 12345.1234)
+    );
+}
 
 void main()
 {
-    const ivec2 size = ivec2(1920, 1080);
-
-    ivec2 pixel = ivec2(gl_FragCoord.xy);
-    int index = pixel.y * size.x + pixel.x;
-    
     vec4 norm = GetNormal();
     vec3 color = GetColor();
+
+    vec2 pixel = gl_FragCoord.xy;
+
+    float depth = LinearizeDepth(GetDepth(), 0.1, 100);
     
+    float slice = log(depth / 0.1) / log(100 / 0.1);
+    slice *= gridSize.z;
+    
+    uint zSlice = uint(clamp(slice, 0.0, float(gridSize.z - 1)));
+
+    vec2 tileSize = vec2(screenDimensions) / vec2(gridSize.xy);
+    uvec2 tileCoord = uvec2(pixel / tileSize);
+
+    float xNorm = float(tileCoord.x) / float(gridSize.x - 1);
+    float yNorm = float(tileCoord.y) / float(gridSize.y - 1);
+    float zNorm = float(zSlice)      / float(gridSize.z - 1);
+    
+    vec3 xyColor = vec3(xNorm, yNorm, 0.0) * 0.5;  // dim so Z dominates
+    
+    vec3 zColor = vec3(
+        smoothstep(0.0, 0.5, 1.0 - zNorm), // red fades with depth
+        smoothstep(0.25, 0.75, zNorm),     // green peaks mid-depth
+        smoothstep(0.5, 1.0, zNorm)        // blue increases with depth
+    );
+    
+    vec3 debugColor = mix(xyColor, zColor, 0.7);
+    gAlbedo = vec4(debugColor, 1.0);
+    //gAlbedo = vec4(color, 1.0);
     gNormal = norm;
-    gAlbedo = pixels[index].color;
 }

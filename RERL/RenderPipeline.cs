@@ -1,9 +1,12 @@
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using RCS;
 using RERL.Components;
 using RERL.ShaderTypes;
 using static RERL.Loaders.MaterialLoader;
+using static RERL.RenderData;
 using static RERL.RERL_Core;
 using Window = OpenTK.Windowing.GraphicsLibraryFramework.Window;
 
@@ -11,42 +14,57 @@ namespace RERL;
 
 public static class RenderPipeline
 {
-    internal static GBuffer GeometryFrame;
+    internal static GBuffer GFrame;
     
     static int _postProcessingQuad_VAO;
     
     internal static readonly List<Shader> Shaders = [];
     internal static readonly List<PostProcess> PostProcesses = [];
+    internal static readonly List<PostProcess> EnginePostProcesses = [];
     internal static readonly Dictionary<int, List<Renderable>> ShaderBatchRendering = new();
     internal static readonly List<Renderable> Renderables = [];
+    internal static readonly List<LightComponent> Lights = [];
     
     internal static readonly List<Material> Materials = [];
-
 
     #region Temp
 
     static PostProcess clusterBuilderDebug;
     static Compute clusterBuilder;
-
+    
+    const int gridSizeX = 12;
+    const int gridSizeY = 12;
+    const int gridSizeZ = 24;
+    const int ClusterCount = gridSizeX * gridSizeY * gridSizeZ;
+    
     #endregion
 
     internal static void InitializeRenderPipeline()
     {
-        GeometryFrame = new GBuffer(RERL_Core.Window.Size);
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, GeometryFrame.GetFBO());
+        GFrame = new GBuffer(RERL_Core.Window.Size);
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, GFrame.GetFBO());
         
         _postProcessingQuad_VAO = GL.GenVertexArray();
 
         #region Temp
 
-        int testSSBO = GL.GenBuffer();
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, testSSBO);
-        GL.BufferData(BufferTarget.ShaderStorageBuffer, 1920 * 1080 * 16, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, testSSBO);
-
+        
+        
+        int clustersSSBO = GL.GenBuffer();
+        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, clustersSSBO);
+        unsafe {GL.BufferData(BufferTarget.ShaderStorageBuffer, sizeof(Cluster) * ClusterCount, IntPtr.Zero, BufferUsageHint.DynamicDraw);}
+        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, clustersSSBO);
+        
         clusterBuilderDebug = new PostProcess().AttachPostProcessShader("./Shaders/ClusterBuilding/clusterBuilderDebug.post", RERL_Core.Window);
-        RegisterPostProcess(clusterBuilderDebug);
+        clusterBuilderDebug.RegisterAutoUniform("gridSize",         () => new Vector3i(gridSizeX, gridSizeY, gridSizeZ));
+        clusterBuilderDebug.RegisterAutoUniform("screenDimensions", () => RERL_Core.Window.Size);
+        EnginePostProcesses.Add(clusterBuilderDebug);
         clusterBuilder = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterBuilder.comp");
+        clusterBuilder.RegisterAutoUniform("zNear", () => 0.1f);
+        clusterBuilder.RegisterAutoUniform("zFar",  () => 100f);
+        clusterBuilder.RegisterAutoUniform("inverseProjection", () => Matrix4.Invert(RERL_Core.Camera.GetProjection()));
+        clusterBuilder.RegisterAutoUniform("gridSize",          () => new Vector3i(gridSizeX, gridSizeY, gridSizeZ));
+        clusterBuilder.RegisterAutoUniform("screenDimensions",  () => RERL_Core.Window.Size);
 
         #endregion
     }
@@ -56,9 +74,12 @@ public static class RenderPipeline
         GL.GenQueries(1, out int query);
         GL.BeginQuery(QueryTarget.TimeElapsed, query);
         
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, PostProcesses.Count != 0 ? GeometryFrame.GetFBO() : 0);
-        GeometryFrame.Clear();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, (PostProcesses.Count != 0 || EnginePostProcesses.Count != 0) ? GFrame.GetFBO() : 0);
+        GFrame.Clear();
         
+        GL.Enable(EnableCap.DepthTest);
+        GL.DepthMask(true);
+        GL.DepthFunc(DepthFunction.Lequal); 
         foreach (var kpv in ShaderBatchRendering)
         {
             List<Renderable> renderables = kpv.Value;
@@ -74,7 +95,8 @@ public static class RenderPipeline
         #region Engine Computes
 
         clusterBuilder.Use();
-        clusterBuilder.Dispatch(1920 / 16, 1080 / 16, 1);
+        clusterBuilder.ApplyAutoUniforms();
+        clusterBuilder.Dispatch(gridSizeX, gridSizeY, gridSizeZ);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
 
         #endregion
@@ -82,11 +104,12 @@ public static class RenderPipeline
         GL.DepthMask(false);
         GL.Disable(EnableCap.DepthTest);
         if (PostProcesses.Count != 0)
-        {
-            GBuffer input = GeometryFrame;
             for (int p = 0; p < PostProcesses.Count; p++)
-                input = PostProcesses[p].RenderPostProcess(input, _postProcessingQuad_VAO, (p == PostProcesses.Count - 1));
-        }
+                PostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, (p == PostProcesses.Count - 1));
+
+        if (EnginePostProcesses.Count != 0)
+            for (int p = 0; p < EnginePostProcesses.Count; p++)
+                EnginePostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, p == EnginePostProcesses.Count - 1);
         GL.Enable(EnableCap.DepthTest);
         GL.DepthMask(true);
 
@@ -172,6 +195,13 @@ public static class RenderPipeline
     public static void RegisterPostProcess(PostProcess postProcess) => PostProcesses.Add(postProcess);
     public static void UnregisterPostProcess(PostProcess postProcess) => PostProcesses.Remove(postProcess);
     
+    #endregion
+
+    #region Light
+
+    public static void RegisterLight(LightComponent light) => Lights.Add(light);
+    public static void UnregisterLight(LightComponent light) => Lights.Remove(light);
+
     #endregion
     
     #endregion

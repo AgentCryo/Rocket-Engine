@@ -1,0 +1,27 @@
+#define LOCAL_SIZE 128
+layout(local_size_x = LOCAL_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+struct Cluster {
+    vec3 minPoint;   // 12 bytes
+    uint offset;     // 4 bytes
+    vec3 maxPoint;   // 12 bytes
+    uint count;      // 4 bytes
+};                   // total = 32 bytes
+
+struct Light
+{
+    vec3  color;
+    float intensity;
+    vec3  position;
+    float radius;
+    vec3  direction; // ignored for point
+    float angle;     // 0 = point, >0 = spot (radians or cosAngle)
+};
+
+layout(std430, binding = 1) restrict buffer clustersSSBO {
+    Cluster clusters[];
+};
+
+layout(std430, binding = 2) restrict buffer lightIndicesSSBO {
+    uint lightIndices[];
+};

@@ -143,8 +143,10 @@ public class Shader
     {
         int location = GetUniformLocation(name);
 
-        if (location == -1 && !silence)
-            throw new Exception($"ERR: Uniform '{name}' not found.");
+        if (location == -1 && !silence) {
+            Logger.Error($"ERR: Uniform '{name}' not found.", !silence);
+            return false;
+        }
         if (location == -1 && silence) return false;
 
         switch (value) {
@@ -169,9 +171,8 @@ public class Shader
             case Matrix4 m4: GL.UniformMatrix4(location, transposeMatrix, ref m4); break;
             case Quaternion q: GL.Uniform4(location, new Vector4(q.X, q.Y, q.Z, q.W)); break;
             default:
-                return silence
-                    ? false
-                    : throw new Exception($"ERR: Unsupported uniform type '{value?.GetType()}' for '{name}'.");
+                Logger.Error($"ERR: Unsupported uniform type '{value?.GetType()}' for '{name}'.", !silence);
+                return false;
         }
 
         return true;

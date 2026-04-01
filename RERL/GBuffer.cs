@@ -23,11 +23,9 @@ public struct GBuffer
         // --- Color ---
         Color = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, Color);
-        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
-            screenSize.X, screenSize.Y, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, screenSize.X, screenSize.Y, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
         SetupTexture2D(Color);
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, Color, 0);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, Color, 0);
 
         // --- Normal ---
         Normal = GL.GenTexture();
@@ -35,24 +33,20 @@ public struct GBuffer
         GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f,
             screenSize.X, screenSize.Y, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
         SetupTexture2D(Normal);
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, Normal, 0);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, Normal, 0);
 
         // --- Depth ---
-        Depth = GL.GenRenderbuffer();
-        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, Depth);
-        GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer,
-            RenderbufferStorage.DepthComponent24, screenSize.X, screenSize.Y);
-        GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
-            FramebufferAttachment.DepthAttachment,
-            RenderbufferTarget.Renderbuffer, Depth);
+        Depth = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, Depth);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32f, screenSize.X, screenSize.Y, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+        SetupTexture2D(Depth);
+        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, Depth, 0);
 
         // Tell OpenGL which color attachments we are drawing to
-        DrawBuffersEnum[] attachments = {
+        DrawBuffersEnum[] attachments = [
             DrawBuffersEnum.ColorAttachment0,
-            DrawBuffersEnum.ColorAttachment1,
-            DrawBuffersEnum.ColorAttachment2
-        };
+            DrawBuffersEnum.ColorAttachment1
+        ];
         GL.DrawBuffers(attachments.Length, attachments);
 
         var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -84,10 +78,6 @@ public struct GBuffer
         GL.ClearBuffer(ClearBuffer.Color, 1, clear);
         
         float depthClear = 1f;
-        // Clear COLOR attachment 2 (depth)
-        GL.ClearBuffer(ClearBuffer.Color, 2, ref depthClear);
-        
-        // Clear depth buffer.
         GL.ClearBuffer(ClearBuffer.Depth, 0, ref depthClear);
     }
 

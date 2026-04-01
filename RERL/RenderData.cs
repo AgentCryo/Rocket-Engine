@@ -44,7 +44,6 @@ public static class RenderData
         public Vector2 Padding;      // 8 -> total 32
     }
 
-
     public static GPUMaterial ToGpu(Material mat)
     {
         ulong h = mat.AlbedoHandle;
@@ -66,4 +65,23 @@ public static class RenderData
         public uint BaseInstance;
     }
 
+    [StructLayout(LayoutKind.Sequential, Pack = 16)]
+    public struct Cluster
+    {
+        Vector3 minPoint;
+        uint    offset;
+        Vector3 maxPoint;
+        uint    count;
+    }
+    
+    [StructLayout(LayoutKind.Sequential, Pack = 16)]
+    public struct Light
+    {
+        public Vector3 Color;
+        public float   Intensity;
+        public Vector3 Position;
+        public float   Radius;
+        public Vector3 Direction;
+        public float   Angle;
+    }
 }

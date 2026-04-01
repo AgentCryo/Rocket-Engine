@@ -1,35 +1,69 @@
-layout(local_size_x = 16, local_size_y = 16) in;
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
-struct Pixel {
-    vec4 color;
+struct Cluster {
+    vec3 minPoint;   // 12 bytes
+    uint offset;     // 4 bytes
+    vec3 maxPoint;   // 12 bytes
+    uint count;      // 4 bytes
+};                   // total = 32 bytes
+
+layout(std430, binding = 1) restrict buffer clustersSSBO {
+    Cluster clusters[];
 };
 
-layout(std430, binding = 1) buffer TestBuffer {
-    Pixel pixels[];
+layout(std430, binding = 2) restrict buffer lightIndicesSSBO {
+    uint lightIndices[];
 };
+
+uniform float zNear;
+uniform float zFar;
+
+uniform mat4 inverseProjection;
+uniform ivec3 gridSize;
+uniform ivec2 screenDimensions;
+
+vec3 screenToView(vec2 screenCoord);
+vec3 intersectLineZPlane(vec3 startPoint, vec3 endPoint, float zDistance);
 
 void main()
 {
-    const ivec2 size = ivec2(1920, 1080);
+    uint ClusterIndex = gl_WorkGroupID.x + (gl_WorkGroupID.y * gridSize.x) + (gl_WorkGroupID.z * gridSize.x * gridSize.y);
+    vec2 xyTileSize = vec2(screenDimensions) / vec2(gridSize.xy);
+    
+    //Gets the left and right (of the camera) most position of the xyTile in screen space. 
+    vec3 minXyTile = screenToView(  gl_WorkGroupID.xy      * xyTileSize  );
+    vec3 maxXyTile = screenToView( (gl_WorkGroupID.xy + 1) * xyTileSize  );
+    
+    float planeNear = zNear * pow(zFar / zNear,  gl_WorkGroupID.z      / float(gridSize.z));
+    float planeFar  = zNear * pow(zFar / zNear, (gl_WorkGroupID.z + 1) / float(gridSize.z));
+    
+    //Calculate AABB positions.
+    vec3 minPointNear = intersectLineZPlane( vec3(0, 0, 0), minXyTile, planeNear );
+    vec3 minPointFar  = intersectLineZPlane( vec3(0, 0, 0), minXyTile, planeFar  );
+    vec3 maxPointNear = intersectLineZPlane( vec3(0, 0, 0), maxXyTile, planeNear );
+    vec3 maxPointFar  = intersectLineZPlane( vec3(0, 0, 0), maxXyTile, planeFar  );
+    
+    //Assemble AABB.
+    clusters[ClusterIndex].minPoint = vec3(min(minPointNear, minPointFar));
+    clusters[ClusterIndex].maxPoint = vec3(max(maxPointNear, maxPointFar));
+}
 
-    uint gx = gl_WorkGroupID.x;
-    uint gy = gl_WorkGroupID.y;
+vec3 intersectLineZPlane(vec3 startPoint, vec3 endPoint, float zDistance)
+{
+    vec3 direction = endPoint - startPoint;
+    vec3 normal = vec3(0.0, 0.0, -1.0);
 
-    uint lx = gl_LocalInvocationID.x;
-    uint ly = gl_LocalInvocationID.y;
+    float t = (zDistance - dot(normal, startPoint)) / dot(normal, direction);
+    return startPoint + t * direction;
+}
 
-    uint index = gl_GlobalInvocationID.y * size.x + gl_GlobalInvocationID.x;
+vec3 screenToView(vec2 screenCoord) // Screen space -> View/Clip space.
+{
+    // normalize screenCoord to [-1, 1]
+    vec2 ndcXY = (screenCoord / vec2(screenDimensions)) * 2.0 - 1.0;
+    vec4 ndc   = vec4(ndcXY, -1.0, 1.0);
 
-    vec2 wgNorm = vec2(gx, gy) / vec2(gl_NumWorkGroups.xy);
-
-    vec2 localNorm = vec2(lx, ly) / vec2(gl_WorkGroupSize.xy);
-
-    vec3 color =
-        vec3(wgNorm, 0.5) +                // big tile color
-        vec3(localNorm * 0.5, 0.0);        // inner swirl
-
-    float noise = fract(sin(dot(vec2(gx, gy), vec2(12.9898, 78.233))) * 43758.5453);
-    color += noise * 0.1;
-
-    pixels[index].color = vec4(color, 1.0);
+    vec4 viewCoord = inverseProjection * ndc;
+    viewCoord /= viewCoord.w;
+    return viewCoord.xyz;
 }

@@ -91,6 +91,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="Models\" />
       <Folder Include="Shaders\ClusterBuilding\" />
       <Folder Include="Shaders\Templates\" />
     </ItemGroup>
