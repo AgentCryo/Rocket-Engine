@@ -59,4 +59,9 @@ public static class RERL_Core
     /// Renders a single frame, including geometry pass, post‑processing, and buffer swapping.
     /// </summary>
     public static void RenderFrame(FrameEventArgs args) => RenderPipelineFrame(args);
+
+    public static void OnResize()
+    {
+        ResizeRenderPipeline();
+    }
 }

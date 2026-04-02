@@ -13,6 +13,9 @@ public class Camera
     Matrix4 _view;
     Matrix4 _projection;
 
+    public float Near { get; private set; }
+    public float Far { get; private set; }
+
     public Matrix4 GetProjection() => _projection;
     public Matrix4 GetView() => _view;
 
@@ -22,6 +25,8 @@ public class Camera
     /// <param name="aspect">Screen width / Screen Height.</param>
     public void SetProjectionFovYInDegrees(float fovY, float aspect, float near, float far)
     {
+        Near = near;
+        Far = far;
         _projection = CreatePerspectiveFieldOfViewLH(float.DegreesToRadians(fovY), aspect, near, far);
     }
 
@@ -31,6 +36,8 @@ public class Camera
     /// <param name="aspect">Screen width / Screen Height.</param>
     public void SetProjectionFovXInDegrees(float fovX, float aspect, float near, float far)
     {
+        Near = near;
+        Far = far;
         float fovY = 2f * MathF.Atan(MathF.Tan(MathHelper.DegreesToRadians(fovX) / 2f) / aspect);
         _projection = CreatePerspectiveFieldOfViewLH(fovY, aspect, near, far);
     }

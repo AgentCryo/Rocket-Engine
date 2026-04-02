@@ -69,9 +69,10 @@ public static class RenderData
     public struct Cluster
     {
         Vector3 minPoint;
-        uint    offset;
+        uint   _pad0;
         Vector3 maxPoint;
-        uint    count;
+        uint   _pad1;
+        uint[]  LightIndices;
     }
     
     [StructLayout(LayoutKind.Sequential, Pack = 16)]

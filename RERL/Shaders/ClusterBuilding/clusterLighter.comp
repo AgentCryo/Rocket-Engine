@@ -1,27 +1,65 @@
-#define LOCAL_SIZE 128
-layout(local_size_x = LOCAL_SIZE, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 struct Cluster {
-    vec3 minPoint;   // 12 bytes
-    uint offset;     // 4 bytes
-    vec3 maxPoint;   // 12 bytes
-    uint count;      // 4 bytes
-};                   // total = 32 bytes
+    vec3 minPoint;
+    uint _pad0;
+    vec3 maxPoint;
+    uint lightCount;
+    uint lightIndices[128];
+};
 
-struct Light
-{
+struct Light {
     vec3  color;
     float intensity;
     vec3  position;
     float radius;
-    vec3  direction; // ignored for point
-    float angle;     // 0 = point, >0 = spot (radians or cosAngle)
+    vec3  direction;
+    float angle;
 };
 
 layout(std430, binding = 1) restrict buffer clustersSSBO {
     Cluster clusters[];
 };
 
-layout(std430, binding = 2) restrict buffer lightIndicesSSBO {
-    uint lightIndices[];
+layout(std430, binding = 2) restrict buffer lightsSSBO {
+    Light lights[];
 };
+
+uniform mat4 viewMatrix;
+uniform ivec3 gridSize;
+
+bool checkSphereAABB(uint i, Cluster c)
+{
+    vec3 center = vec3(viewMatrix * vec4(lights[i].position, 1.0));
+    float radius = lights[i].radius;
+
+    vec3 aabbMin = c.minPoint;
+    vec3 aabbMax = c.maxPoint;
+
+    vec3 closestPoint = clamp(center, aabbMin, aabbMax);
+    float distanceSquared = dot(closestPoint - center, closestPoint - center);
+    return distanceSquared <= radius * radius;
+}
+
+void main()
+{
+   uint clusterIndex = gl_GlobalInvocationID.x;
+   if (clusterIndex >= gridSize.x * gridSize.y * gridSize.z)
+       return;
+    
+   Cluster c = clusters[clusterIndex];
+   c.lightCount = 0;
+
+   uint totalLights = lights.length();
+
+   for (uint i = 0; i < totalLights; ++i)
+   {
+       if (c.lightCount < 128 && checkSphereAABB(i, c))
+       {
+           c.lightIndices[c.lightCount] = i;
+           c.lightCount++;
+       }
+   }
+   
+   clusters[clusterIndex] = c;
+}

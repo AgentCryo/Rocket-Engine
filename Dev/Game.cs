@@ -67,7 +67,23 @@ public class Game : GameWindow
         RERL_Core.Load();
         
         MainScene = new RCS_Core.Scene("Main");
-        
+
+        // Light A
+        {
+            var lightA = new Entity("Light A") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
+
+            lightA.AddComponent(new LightComponent().SetPositionListener(() => lightA.Transform.Position).SetRadius(3));
+            
+            MainScene.AddEntity(lightA);
+        }
+        // Light B
+        {
+            var lightB = new Entity("Light B") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
+
+            lightB.AddComponent(new LightComponent().SetPositionListener(() => lightB.Transform.Position).SetRadius(6).SetColor((0, 1, 1)));
+            
+            MainScene.AddEntity(lightB);
+        }
         // Pong Ico Object
         {
             MainScene.AddEntity(new Entity("PongIco")
@@ -77,7 +93,6 @@ public class Game : GameWindow
                 .AddComponent(new PongComponent(20, 10))
             );
         }
-        
         // Menger Sponge Object
         {
             var menger = new Entity("MengerSpongeObject")
@@ -208,6 +223,7 @@ public class Game : GameWindow
     {
         _cameraController.UpdateInput(args.Time);
         RCS_Core.UpdateActiveScene(args.Time);
+        RCS_Core.GetActiveScene().GetEntity("Light B").Transform.Position.X = float.Sin((_time += (float)args.Time)) * 4;
         base.OnUpdateFrame(args);
     }
 

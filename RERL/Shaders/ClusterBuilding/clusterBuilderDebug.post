@@ -1,14 +1,31 @@
 struct Cluster {
-    vec3 minPoint;
-    uint offset;
-    vec3 maxPoint;
-    uint count;
+    vec3 minPoint;   
+    uint _pad0;     
+    vec3 maxPoint;   
+    uint lightCount;
+    uint lightIndices[128];      
+};       
+
+struct Light
+{
+    vec3  color;
+    float intensity;
+    vec3  position;
+    float radius;
+    vec3  direction; // ignored for point
+    float angle;     // 0 = point, >0 = spot (radians or cosAngle)
 };
 
-layout(std430, binding = 1) buffer clustersSSBO {
+layout(std430, binding = 1) restrict buffer clustersSSBO {
     Cluster clusters[];
 };
 
+layout(std430, binding = 2) restrict buffer lightsSSBO {
+    Light lights[];
+};
+
+uniform mat4 inverseProjection;
+uniform mat4 viewMatrix;
 uniform ivec3 gridSize;
 uniform ivec2 screenDimensions;
 
@@ -22,28 +39,75 @@ vec3 hashColor(uint i)
     );
 }
 
+uniform float zNear;
+uniform float zFar;
+
 void main()
 {
-    vec4 norm = GetNormal();
-    vec3 color = GetColor();
-
-    vec2 pixel = gl_FragCoord.xy;
-
-    float depth = LinearizeDepth(GetDepth(), 0.1, 100);
+    vec4 norm   = GetNormal();
+    vec3 color  = GetColor();
+    float depth = GetDepth();
     
-    float slice = log(depth / 0.1) / log(100 / 0.1);
-    slice *= gridSize.z;
+    vec2 pixel = gl_FragCoord.xy;
+    vec2 ndcXY = (pixel / vec2(screenDimensions)) * 2.0 - 1.0;
+    
+    float ndcZ  = depth * 2.0 - 1.0; 
+    vec4 clip   = vec4(ndcXY, ndcZ, 1.0);
+    
+    vec4 view    = inverseProjection * clip;
+    view        /= view.w;
+    vec3 viewPos = view.xyz;   
+    float viewZ  = viewPos.z;
+    viewZ = clamp(viewZ, zNear, zFar);
+    
+    float slice = log(viewZ / zNear) / log(zFar / zNear);
+    slice *= float(gridSize.z);
+    slice = max(slice - 1e-4, 0.0);
     
     uint zSlice = uint(clamp(slice, 0.0, float(gridSize.z - 1)));
-
+    
     vec2 tileSize = vec2(screenDimensions) / vec2(gridSize.xy);
-    uvec2 tileCoord = uvec2(pixel / tileSize);
-
+    vec2 tileFloat = pixel / tileSize;
+    
+    uvec2 tileCoord = uvec2(clamp(tileFloat, vec2(0.0), vec2(gridSize.xy) - vec2(1.0)));
+    
+    uint clusterIndex = tileCoord.x + tileCoord.y * gridSize.x + zSlice * (gridSize.x * gridSize.y);
+    
+    {
+        Cluster c = clusters[clusterIndex];
+        
+        float t = clamp(float(c.lightCount) / 2, 0.0, 1.0);
+        
+        for(uint l = 0u; l < lights.length(); l++) {
+            vec3 lightViewPos = vec3(viewMatrix * vec4(lights[l].position, 1.0));
+            float lightRadius = lights[l].radius;
+            
+            float distToLight = length(viewPos - lightViewPos);
+            bool pixelInsideSphere = distToLight <= lightRadius;
+            
+            if (pixelInsideSphere && (t == 0)) {
+                gAlbedo = vec4(1.0, 0.0, 0.0, 1.0); // RED = real bug
+                gNormal = norm;
+                return;
+            }
+            
+            if (pixelInsideSphere && (t != 0)) {
+                gAlbedo = vec4(0.0, 1.0, 0.0, 1.0); // GREEN = correct
+                gNormal = norm;
+                return;
+            }
+        }
+        
+        gAlbedo = vec4(mix(vec3(t), color, t), 1.0);
+        gNormal = norm;
+        return;
+    }
+    
     float xNorm = float(tileCoord.x) / float(gridSize.x - 1);
     float yNorm = float(tileCoord.y) / float(gridSize.y - 1);
     float zNorm = float(zSlice)      / float(gridSize.z - 1);
     
-    vec3 xyColor = vec3(xNorm, yNorm, 0.0) * 0.5;  // dim so Z dominates
+    vec3 xyColor = vec3(xNorm, yNorm, 0.0);
     
     vec3 zColor = vec3(
         smoothstep(0.0, 0.5, 1.0 - zNorm), // red fades with depth
@@ -54,5 +118,4 @@ void main()
     vec3 debugColor = mix(xyColor, zColor, 0.7);
     gAlbedo = vec4(debugColor, 1.0);
     //gAlbedo = vec4(color, 1.0);
-    gNormal = norm;
 }
