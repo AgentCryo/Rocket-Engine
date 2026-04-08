@@ -12,20 +12,30 @@ public class Entity
     readonly string _name;
     readonly List<IComponent> _components = [];
     public readonly Transform Transform;
+    readonly Dictionary<string, object> _data = new();
 
-    public Entity(string name)
-    {
+    public Entity(string name) {
         _name = name;
-        Transform = new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One)
-        {
+        Transform = new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One) {
             Owner = this
         };
     }
-    
+
+    #region Data Interface
+
+    public void RegisterData(string name, object data) => _data.Add(name, data);
+    public object GetData(string name) => _data[name];
+    public void RemoveData(string name) => _data.Remove(name);
+    public void SetData(string name, object data) => _data[name] = data;
+
+    #endregion
+
     /// <summary>
     /// Gets the name of the entity.
     /// </summary>
     public string GetName() => _name;
+
+    #region Component Interface
 
     /// <summary>
     /// Adds a component instance to the entity.
@@ -61,9 +71,7 @@ public class Entity
     /// <exception cref="Exception">
     /// Thrown if a component of the specified type does not exist.
     /// </exception>
-    public T GetComponent<T>() where T : class, IComponent =>
-        _components.OfType<T>().FirstOrDefault()
-        ?? throw new Exception($"ERR: Component of type: {typeof(T).Name} not found in: {_name}.");
+    public T GetComponent<T>() where T : class, IComponent => _components.OfType<T>().FirstOrDefault() ?? throw new Exception($"ERR: Component of type: {typeof(T).Name} not found in: {_name}.");
 
     /// <summary>
     /// Attempts to retrieve a component of type <typeparamref name="T"/>.
@@ -71,8 +79,7 @@ public class Entity
     /// <typeparam name="T">The component type to retrieve.</typeparam>
     /// <param name="component">The retrieved component, or <c>null</c> if not found.</param>
     /// <returns><c>true</c> if the component exists; otherwise, <c>false</c>.</returns>
-    public bool TryGetComponent<T>(out T? component) where T : class, IComponent
-    {
+    public bool TryGetComponent<T>(out T? component) where T : class, IComponent {
         component = _components.OfType<T>().FirstOrDefault();
         return component != null;
     }
@@ -87,12 +94,14 @@ public class Entity
     /// </summary>
     /// <param name="component">The component to remove.</param>
     public void RemoveComponent(IComponent component) => _components.Remove(component);
+    
 
+    #endregion
+    
     /// <summary>
     /// Calls <see cref="IComponent.Load"/> on all components.
     /// </summary>
-    public virtual void Load()
-    {
+    public virtual void Load() {
         foreach (var component in _components)
             component.Load();
     }
@@ -101,8 +110,8 @@ public class Entity
     /// Calls <see cref="IComponent.Update(float)"/> on all components.
     /// </summary>
     /// <param name="deltaTime">Time elapsed since the last update.</param>
-    public virtual void Update(float deltaTime)
-    {
+    public virtual void Update(float deltaTime) {
+        Transform.Update(deltaTime);
         foreach (var component in _components)
             component.Update(deltaTime);
     }

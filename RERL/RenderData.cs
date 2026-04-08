@@ -78,6 +78,18 @@ public static class RenderData
     [StructLayout(LayoutKind.Sequential, Pack = 16)]
     public struct Light
     {
+        public uint    Data;         
+        // Data bit layout (uint32):
+        //     [ 1:0  ] LightType
+        //               00 = Point
+        //               01 = Spot
+        //               10 = Directional
+        //     [ 2    ] SmoothEdgeClamping
+        //     [ 3    ] GlobalLight (1 = global, 0 = clustered)
+        //     [ 31:4 ]  Reserved
+               uint   _pad0;
+               uint   _pad1;
+               uint   _pad2;
         public Vector3 Color;
         public float   Intensity;
         public Vector3 Position;

@@ -7,6 +7,8 @@ namespace RERL;
 /// </summary>
 public class Camera
 {
+    public bool IsDirty;
+    
     Vector3    _position;
     Quaternion _rotation;
     

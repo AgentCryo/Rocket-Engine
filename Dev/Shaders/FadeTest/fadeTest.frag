@@ -14,4 +14,5 @@ void main()
     vec3 diffuse = diff * vec3(1,1,1);
     gNormal = vec4(norm, 1.0);
     gAlbedo = vec4(vColor * (ambient + diffuse), 0.1);
+    gPosition = vec4(FragPos, 1.0);
 }

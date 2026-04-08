@@ -38,4 +38,5 @@ void main()
     //color = material.baseColor.rgb;
 
     gAlbedo = vec4(color, 1.0);
+    gPosition = vec4(FragPos, 1.0);
 }

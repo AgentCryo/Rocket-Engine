@@ -1,0 +1,197 @@
+struct Cluster {
+    vec3 minPoint;
+    uint _pad0;
+    vec3 maxPoint;
+    uint lightCount;
+    uint lightIndices[128];
+};
+
+struct Light {
+    uint  data;       
+    // Data bit layout (uint32):
+    //     [ 1:0  ] LightType
+    //               00 = Point
+    //               01 = Spot
+    //               10 = Directional
+    //     [ 2    ] SmoothEdgeClamping
+    //     [ 3    ] GlobalLight (1 = global, 0 = clustered)
+    //     [ 31:4 ]  Reserved
+    uint _pad0;
+    uint _pad1;
+    uint _pad2;
+    vec3  color;
+    float intensity;
+    vec3  position;  
+    float radius;    // Distance from light center to farthest lightable point.
+    vec3  direction; // Only used for cone lights, (and sun lights that only exist in the lighting shader since they are global)
+    float angle;     // 0 for point lights, >0 for cone lights.
+};
+
+layout(std430, binding = 1) restrict buffer clustersSSBO {
+    Cluster clusters[];
+};
+
+layout(std430, binding = 2) restrict buffer lightsSSBO {
+    Light lights[];
+};
+
+layout(std430, binding = 3) restrict buffer globalLightsSSBO {
+    Light globalLights[];
+};
+
+uniform float zNear;
+uniform float zFar;
+uniform ivec3 gridSize;
+uniform ivec2 screenDimensions;
+uniform mat4  viewMatrix;
+
+vec3  position;
+vec3  color;   
+vec4  norm;    
+float depth;  
+
+const uint LIGHT_POINT       = 0u;
+const uint LIGHT_SPOT        = 1u;
+const uint LIGHT_DIRECTIONAL = 2u;
+
+uint GetLightType(uint data)
+{
+    return data & 0x3u; // bits 0-1
+}
+
+bool GetSmoothFalloff(uint data)
+{
+    return (data & (1u << 2)) != 0u; // bit 2
+}
+
+bool IsGlobalLight(uint data)
+{
+    return (data & (1u << 3)) != 0u; // bit 3
+}
+
+vec3 ComputeLight(Light light);
+float ComputeAttenuation(float dist, float radius, bool smoothFalloff);
+
+void main() {
+    position = GetPosition();
+    color    = GetColor();
+    norm     = GetNormal();
+    depth    = GetDepth();
+    
+    if(depth == 1) discard;
+    
+    float viewZ = -(viewMatrix * vec4(position, 1.0)).z;
+    uint zTile = uint((log(abs(viewZ) / zNear) * gridSize.z) / log(zFar / zNear));
+    vec2 tileSize = screenDimensions / gridSize.xy;
+    uvec3 tile = uvec3(gl_FragCoord.xy / tileSize, zTile);
+    uint clusterIndex = tile.x + (tile.y * gridSize.x) + (tile.z * gridSize.x * gridSize.y);
+    
+    uint lightCount = clusters[clusterIndex].lightCount;
+    
+    //if (lightCount >= 128u) {
+    //    gNormal   = norm;
+    //    gAlbedo   = vec4(1.0, 0.0, 0.0, 1.0); // bright red
+    //    gPosition = vec4(position, 1.0);
+    //    return;
+    //}
+    //
+    //if (lightCount == 0) {
+    //    gNormal   = norm;
+    //    gAlbedo   = vec4(0.0, 0.0, 0.2, 1.0); // blue
+    //    gPosition = vec4(position, 1.0);
+    //    return;
+    //}
+    
+    vec3 lighting = color * 0.1;
+    for(uint l = 0u; l < lightCount; l++) {
+        uint lightIndex = clusters[clusterIndex].lightIndices[l];
+        lighting += ComputeLight(lights[lightIndex]);
+    }
+
+    for(uint gli = 0u; gli < globalLights.length(); gli++)
+        lighting += ComputeLight(globalLights[gli]);
+
+    gNormal = norm;
+    gAlbedo = vec4(lighting, 1);
+    gPosition = vec4(position, 1.0);
+}
+
+//vec3 ComputeLight(Light light) {
+//    float lightDist = length(light.position - position);
+//    if (lightDist > light.radius) return vec3(0.0);
+//    vec3 lightDir  = normalize(light.position - position);
+//    
+//    if(light.angle > 0) { // If it's a spotlight.
+//        vec3 lightToFrag = normalize(position - light.position); // from light to fragment
+//        float theta = dot(lightToFrag, normalize(light.direction)); // compare to forward axis
+//        if (theta <= cos(light.angle)) return vec3(0.0);
+//    }
+//    
+//    float attenuation = ComputeAttenuation(lightDist, light.radius, true);
+//    vec3 diffuse = max(dot(DecodeNormal(norm), lightDir), 0.0) * color * light.color * light.intensity * attenuation;
+//    
+//    return diffuse;
+//}
+
+vec3 ComputeLight(Light light) {
+    uint type          = GetLightType(light.data);
+    bool smoothFalloff = GetSmoothFalloff(light.data);
+    bool isGlobal      = IsGlobalLight(light.data);
+
+    vec3 N = DecodeNormal(norm);
+
+    // DIRECTIONAL LIGHTS
+    if (type == LIGHT_DIRECTIONAL)
+    {
+        vec3 Ldir = normalize(-light.direction);
+
+        if (isGlobal) {
+            float ndotl = max(dot(N, Ldir), 0.0);
+            return ndotl * color * light.color * light.intensity;
+        } else {
+            float dist = length(light.position - position);
+            if (dist > light.radius) return vec3(0.0);
+
+            float atten = smoothFalloff ? ComputeAttenuation(dist, light.radius, true) : 1.0;
+
+            float ndotl = max(dot(N, Ldir), 0.0);
+            return ndotl * color * light.color * light.intensity * atten;
+        }
+    }
+
+    // POINT & SPOT LIGHTS
+    vec3 toLight   = light.position - position;
+    float dist     = length(toLight);
+    vec3 lightDir  = normalize(toLight);
+
+    if (!isGlobal && dist > light.radius) return vec3(0.0);
+
+    if (type == LIGHT_SPOT) {
+        vec3 lightToFrag = normalize(position - light.position);
+        float theta      = dot(lightToFrag, normalize(light.direction));
+        if (theta <= cos(light.angle)) return vec3(0.0);
+    }
+    float attenuation = 1.0 / max(dist * dist, 0.0001);
+
+    if (!isGlobal && smoothFalloff) {
+        float fade = 1.0 - smoothstep(light.radius * 0.8, light.radius, dist);
+        attenuation *= fade;
+    }
+
+    float ndotl = max(dot(N, lightDir), 0.0);
+    return ndotl * color * light.color * light.intensity * attenuation;
+}
+
+float ComputeAttenuation(float dist, float radius, bool smoothFalloff)
+{
+    if (dist >= radius) return 0.0;
+
+    float pbr = 1.0 / max(dist * dist, 0.0001);
+
+    if (!smoothFalloff) return pbr;
+
+    // Smooth fade near the edge
+    float fade = 1.0 - smoothstep(radius * 0.8, radius, dist);
+
+    return pbr * fade;
+}

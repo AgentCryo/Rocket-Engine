@@ -6,14 +6,17 @@ struct Cluster {
     uint lightIndices[128];      
 };       
 
-struct Light
-{
+struct Light {
+    uint  data; 
+    uint _pad0;
+    uint _pad1;
+    uint _pad2;
     vec3  color;
     float intensity;
-    vec3  position;
-    float radius;
-    vec3  direction; // ignored for point
-    float angle;     // 0 = point, >0 = spot (radians or cosAngle)
+    vec3  position;  
+    float radius;    // Distance from light center to farthest lightable point.
+    vec3  direction; // Only used for cone lights, (and sun lights that only exist in the lighting shader since they are global)
+    float angle;     // 0 for point lights, >0 for cone lights.
 };
 
 layout(std430, binding = 1) restrict buffer clustersSSBO {

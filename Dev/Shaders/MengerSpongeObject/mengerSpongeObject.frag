@@ -151,16 +151,17 @@ float RayMarch(vec3 origin, vec3 dir, int steps)
 
 float GetLight(vec3 p, vec3 lightPos)
 {
-   vec3 lightDir = normalize(lightPos - p);
-   vec3 n = calcNormal(p);
-
-   float dif = clamp(dot(n, lightDir), 0.0, 1.0);
-
-   float shadowT = RayMarch(p + n * 0.02, lightDir, 128);
-   if (shadowT < length(lightPos - p))
-       dif *= 0.1;
-
-   return dif;
+   //vec3 lightDir = normalize(lightPos - p);
+   //vec3 n = calcNormal(p);
+//
+   //float dif = clamp(dot(n, lightDir), 0.0, 1.0);
+//
+   //float shadowT = RayMarch(p + n * 0.02, lightDir, 128);
+   //if (shadowT < length(lightPos - p))
+   //    dif *= 0.1;
+//
+   //return dif;
+   return 0.6;
 }
 
 mat4 makeProj(float fov, float aspect, float near, float far)
@@ -219,4 +220,5 @@ void main()
     gl_FragDepth = depth;
          
     gAlbedo = vec4(color, 1.0);
+    gPosition = vec4(hitPoint, 1.0);
 }

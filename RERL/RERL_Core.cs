@@ -29,9 +29,16 @@ public static class RERL_Core
     internal static Camera Camera;
     internal static GameWindow Window;
     
-    public static void SetCamera(Camera camera) => Camera = camera;
-    public static void SetGameWindow(GameWindow window) => Window = window;
-    
+    public static void SetCamera(Camera camera) {
+        Camera = camera;
+        CameraChange();
+    }
+
+    public static void SetGameWindow(GameWindow window) {
+        Window = window;
+        Resize();
+    }
+
     /// <summary>
     /// Initializes the rendering system, loads shaders, creates the G‑Buffer,
     /// and prepares OpenGL state. Must be called before adding renderables.
@@ -60,7 +67,7 @@ public static class RERL_Core
     /// </summary>
     public static void RenderFrame(FrameEventArgs args) => RenderPipelineFrame(args);
 
-    public static void OnResize()
+    public static void Resize()
     {
         ResizeRenderPipeline();
     }

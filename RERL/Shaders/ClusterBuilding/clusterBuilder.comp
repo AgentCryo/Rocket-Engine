@@ -8,14 +8,17 @@ struct Cluster {
     uint lightIndices[128];      
 };                   
 
-struct Light
-{
+struct Light {
+    uint  data; 
+    uint _pad0;
+    uint _pad1;
+    uint _pad2;
     vec3  color;
     float intensity;
-    vec3  position;
-    float radius;
-    vec3  direction; // ignored for point
-    float angle;     // 0 = point, >0 = spot (radians or cosAngle)
+    vec3  position;  
+    float radius;    // Distance from light center to farthest lightable point.
+    vec3  direction; // Only used for cone lights, (and sun lights that only exist in the lighting shader since they are global)
+    float angle;     // 0 for point lights, >0 for cone lights.
 };
 
 layout(std430, binding = 1) restrict buffer clustersSSBO {
@@ -24,6 +27,10 @@ layout(std430, binding = 1) restrict buffer clustersSSBO {
 
 layout(std430, binding = 2) restrict buffer lightsSSBO {
     Light lights[];
+};
+
+layout(std430, binding = 3) restrict buffer globalLightsSSBO {
+    Light globalLights[];
 };
 
 uniform float zNear;
@@ -53,8 +60,8 @@ void main()
     vec3 maxPointNear = intersectLineZPlane(vec3(0, 0, 0), maxXyTile, planeNear);
     vec3 maxPointFar  = intersectLineZPlane(vec3(0, 0, 0), maxXyTile, planeFar );
     
-    clusters[ClusterIndex].minPoint = vec3(min(minPointNear, minPointFar));
-    clusters[ClusterIndex].maxPoint = vec3(max(maxPointNear, maxPointFar));
+    clusters[ClusterIndex].minPoint = vec3(min(minPointNear, minPointFar)) - vec3(0.05);
+    clusters[ClusterIndex].maxPoint = vec3(max(maxPointNear, maxPointFar)) + vec3(0.05);
 }
 
 vec3 intersectLineZPlane(vec3 startPoint, vec3 endPoint, float zDistance)

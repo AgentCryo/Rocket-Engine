@@ -189,7 +189,7 @@ public static class ModelLoader
 
         if (MaterialCache.TryGetValue(gltfMatIndex, out matIndex))
         {
-            Logger.Log($"Reusing material {matIndex} for glTF material {gltfMatIndex}");
+            //Logger.Log($"Reusing material {matIndex} for glTF material {gltfMatIndex}");
         } else {
             var mat = LoadGltfMaterial(root.GetProperty("materials")[gltfMatIndex], root, filePath);
             matIndex = RenderPipeline.RegisterMaterial(mat);

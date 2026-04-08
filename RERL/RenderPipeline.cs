@@ -25,16 +25,19 @@ public static class RenderPipeline
     internal static readonly Dictionary<int, List<Renderable>> ShaderBatchRendering = new();
     internal static readonly List<Renderable> Renderables = [];
     internal static readonly List<LightComponent> Lights = [];
+    internal static readonly List<LightComponent> GlobalLights = [];
     
     internal static readonly List<Material> Materials = [];
 
-    static Compute clusterBuilder;
-    static Compute clusterLighter;
+    static Compute _clusterBuilder;
+    static Compute _clusterLighter;
 
-    static Vector3i ClusterGridSize = new Vector3i(12, 12, 24);
-    static int      ClusterCount    = 12 * 12 * 24;
+    static Vector3i _clusterGridSize = new Vector3i(12, 12, 24);
+    static int      _clusterCount    = 12 * 12 * 24;
     
-    static int lightsSSBO = -1, clustersSSBO = -1;
+    static int _lightsSsbo = -2, _globalLightsSsbo = -2, _clustersSsbo = -2;
+
+    static PostProcess _deferredShading;
     
     #region Temp
 
@@ -49,11 +52,12 @@ public static class RenderPipeline
         
         _postProcessingQuad_VAO = GL.GenVertexArray();
         
-        clustersSSBO = GL.GenBuffer();
+        _clustersSsbo = GL.GenBuffer();
         UpdateClustersSsbo();
         
-        lightsSSBO = GL.GenBuffer();
-        if (Lights.Count != 0) UpdateLightsSsbo();
+        _lightsSsbo = GL.GenBuffer();
+        _globalLightsSsbo = GL.GenBuffer();
+        UpdateLightsSsbo();
         
         #region Temp
         
@@ -62,9 +66,13 @@ public static class RenderPipeline
         
         #endregion
         
-        clusterBuilder = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterBuilder.comp");
-        clusterLighter = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterLighter.comp");
+        _clusterBuilder = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterBuilder.comp");
+        _clusterLighter = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterLighter.comp");
         UpdateClusterShaders();
+        
+        _deferredShading = new PostProcess().AttachPostProcessShader("./Shaders/LightShaders/deferredShading.post", RERL_Core.Window);
+        EnginePostProcesses.Add(_deferredShading);
+        UpdateDeferredShader();
     }
 
     internal static void RenderPipelineFrame(FrameEventArgs args)
@@ -73,8 +81,8 @@ public static class RenderPipeline
         GL.BeginQuery(QueryTarget.TimeElapsed, query);
         
         if(Lights.Count != 0) UpdateLightsSsbo();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, (PostProcesses.Count != 0 || EnginePostProcesses.Count != 0) ? GFrame.GetFBO() : 0);
         GFrame.Clear();
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, (PostProcesses.Count != 0 || EnginePostProcesses.Count != 0) ? GFrame.GetFBO() : 0);
         
         foreach (var kpv in ShaderBatchRendering)
         {
@@ -87,21 +95,20 @@ public static class RenderPipeline
             foreach (var mr in renderables)
                 mr.Render();
         }
-
+        
         #region Engine Computes
 
         #region Clusters
 
         if (Lights.Count != 0) {
-            clusterBuilder.Use();
-            clusterBuilder.ApplyAutoUniforms();
-            clusterBuilder.Dispatch(ClusterGridSize.X, ClusterGridSize.Y, ClusterGridSize.Z);
+            _clusterBuilder.Use();
+            _clusterBuilder.ApplyAutoUniforms();
+            _clusterBuilder.Dispatch(_clusterGridSize.X, _clusterGridSize.Y, _clusterGridSize.Z);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
             
-            Logger.Log(ClusterCount.ToString());
-            clusterLighter.Use();
-            clusterLighter.ApplyAutoUniforms();
-            clusterLighter.Dispatch(ClusterCount, 1, 1);
+            _clusterLighter.Use();
+            _clusterLighter.ApplyAutoUniforms();
+            _clusterLighter.Dispatch(_clusterCount, 1, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
         }
 
@@ -111,13 +118,13 @@ public static class RenderPipeline
         
         GL.DepthMask(false);
         GL.Disable(EnableCap.DepthTest);
-        if (PostProcesses.Count != 0)
+        if (EnginePostProcesses.Count != 0) // Engine Post Processes
+            for (int p = 0; p < EnginePostProcesses.Count; p++)
+                EnginePostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, p != PostProcesses.Count - 1);
+
+        if (PostProcesses.Count != 0) // User Post Processes
             for (int p = 0; p < PostProcesses.Count; p++)
                 PostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, (p == PostProcesses.Count - 1));
-
-        if (EnginePostProcesses.Count != 0)
-            for (int p = 0; p < EnginePostProcesses.Count; p++)
-                EnginePostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, p == EnginePostProcesses.Count - 1);
         GL.Enable(EnableCap.DepthTest);
         GL.DepthMask(true);
 
@@ -128,11 +135,24 @@ public static class RenderPipeline
         RERL_Core.Window.SwapBuffers();
     }
 
-    internal static void ResizeRenderPipeline()
-    {
+    internal static void ResizeRenderPipeline() {
+        var size = RERL_Core.Window.Size;
+        if (size.X <= 0 || size.Y <= 0) return;
+
         UpdateClusterShaders();
+        UpdateDeferredShader();
+        GFrame = new GBuffer(size);
     }
-    
+
+    internal static void CameraChange() {
+        if(RERL_Core.Window == null || RERL_Core.Camera == null) return;
+        var size = RERL_Core.Window.Size;
+        if (size.X <= 0 || size.Y <= 0) return;
+        
+        UpdateClusterShaders();
+        UpdateDeferredShader();
+    }
+
     static void RegisterToShaderBatch(Renderable renderable)
     {
         if (renderable.GetShader() == null)
@@ -223,13 +243,26 @@ public static class RenderPipeline
         Lights.Remove(light);
         if (Lights.Count != 0) UpdateLightsSsbo();
     }
+    
+    public static void RegisterGlobalLight(LightComponent light)
+    {
+        GlobalLights.Add(light);
+        UpdateLightsSsbo();
+    }
+
+    public static void UnregisterGlobalLight(LightComponent light)
+    {
+        GlobalLights.Remove(light);
+        if (GlobalLights.Count != 0) UpdateLightsSsbo();
+    }
 
     public static void SetClusterGridSize(Vector3i gridSize)
     {
-        ClusterGridSize = gridSize;
-        ClusterCount    = gridSize.X * gridSize.Y * gridSize.Z;
+        _clusterGridSize = gridSize;
+        _clusterCount    = gridSize.X * gridSize.Y * gridSize.Z;
         UpdateClusterShaders();
         UpdateClustersSsbo();
+        UpdateDeferredShader();
     }
 
     #endregion
@@ -240,6 +273,8 @@ public static class RenderPipeline
 
     static void UpdateClusterShaders()
     {
+        if (_clusterBuilder == null || _clusterLighter == null) return;
+        
         #region Debug
 
         //clusterBuilderDebug.Use();
@@ -254,64 +289,130 @@ public static class RenderPipeline
 
         #region Cluster Builder
 
-        clusterBuilder.Use();
-        clusterBuilder.ApplyUniform("zNear", RERL_Core.Camera.Near);
-        clusterBuilder.ApplyUniform("zFar",  RERL_Core.Camera.Far);
-        clusterBuilder.RegisterAutoUniform("inverseProjection", () => Matrix4.Invert(RERL_Core.Camera.GetProjection()));
-        clusterBuilder.RegisterAutoUniform("gridSize",          () => new Vector3i(ClusterGridSize.X, ClusterGridSize.Y, ClusterGridSize.Z));
-        clusterBuilder.ApplyUniform(       "screenDimensions",  RERL_Core.Window.Size);
+        _clusterBuilder.Use();
+        _clusterBuilder.ApplyUniform("zNear", RERL_Core.Camera.Near);
+        _clusterBuilder.ApplyUniform("zFar",  RERL_Core.Camera.Far);
+        _clusterBuilder.RegisterAutoUniform("inverseProjection", () => Matrix4.Invert(RERL_Core.Camera.GetProjection()));
+        _clusterBuilder.RegisterAutoUniform("gridSize",          () => new Vector3i(_clusterGridSize.X, _clusterGridSize.Y, _clusterGridSize.Z));
+        _clusterBuilder.ApplyUniform(       "screenDimensions",  RERL_Core.Window.Size);
 
         #endregion
 
         #region Cluster Lighter
 
-        clusterLighter.RegisterAutoUniform("viewMatrix", () => RERL_Core.Camera.GetView());
-        clusterLighter.RegisterAutoUniform("gridSize",   () => new Vector3i(ClusterGridSize.X, ClusterGridSize.Y, ClusterGridSize.Z));
+        _clusterLighter.Use();
+        _clusterLighter.RegisterAutoUniform("viewMatrix", () => RERL_Core.Camera.GetView());
+        _clusterLighter.RegisterAutoUniform("gridSize",   () => new Vector3i(_clusterGridSize.X, _clusterGridSize.Y, _clusterGridSize.Z));
 
+        var proj = RERL_Core.Camera.GetProjection();
+
+        float tanHalfFovX = 1f / proj[0, 0];
+        float tanHalfFovY = 1f / proj[1, 1];
+
+        _clusterLighter.ApplyUniform("tanHalfFovX", tanHalfFovX);
+        _clusterLighter.ApplyUniform("tanHalfFovY", tanHalfFovY);
+        _clusterLighter.ApplyUniform("zNear", RERL_Core.Camera.Near);
+        _clusterLighter.ApplyUniform("zFar",  RERL_Core.Camera.Far);
+        
         #endregion
     }
 
     static void UpdateClustersSsbo()
     {
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, clustersSSBO);
+        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _clustersSsbo);
         const int bytesPerCluster = sizeof(float) * 3 + sizeof(uint) // minPoint + _pad0
                                   + sizeof(float) * 3 + sizeof(uint) // maxPoint + lightCount
                                   + sizeof(uint ) * 128;             // lightIndices
 
-        GL.BufferData(BufferTarget.ShaderStorageBuffer, bytesPerCluster * ClusterCount, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, clustersSSBO);
+        GL.BufferData(BufferTarget.ShaderStorageBuffer, bytesPerCluster * _clusterCount, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 1, _clustersSsbo);
     }
     
     static void UpdateLightsSsbo()
     {
-        GL.BindBuffer(BufferTarget.ShaderStorageBuffer, lightsSSBO);
-        unsafe {GL.BufferData(BufferTarget.ShaderStorageBuffer, sizeof(Light) * Lights.Count, IntPtr.Zero, BufferUsageHint.DynamicDraw);}
-        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 2, lightsSSBO);
-        unsafe {
-            Light[] lightArray = Lights
-                .Select(lc => lc.LightData)
-                .ToArray();
+        if(Lights.Count != 0) {
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _lightsSsbo);
+            unsafe {
+                GL.BufferData(BufferTarget.ShaderStorageBuffer, sizeof(Light) * Lights.Count, IntPtr.Zero,
+                    BufferUsageHint.DynamicDraw);
+            }
 
-            fixed (Light* src = lightArray)
-            {
-                IntPtr gpuPtr = GL.MapBufferRange(
-                    BufferTarget.ShaderStorageBuffer,
-                    IntPtr.Zero,
-                    sizeof(Light) * lightArray.Length,
-                    MapBufferAccessMask.MapWriteBit |
-                    MapBufferAccessMask.MapInvalidateBufferBit
-                );
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 2, _lightsSsbo);
+            unsafe {
+                Light[] lightArray = Lights
+                    .Select(lc => lc.LightData)
+                    .ToArray();
 
-                Buffer.MemoryCopy(
-                    src,
-                    gpuPtr.ToPointer(),
-                    sizeof(Light) * lightArray.Length,
-                    sizeof(Light) * lightArray.Length
-                );
+                fixed (Light* src = lightArray) {
+                    IntPtr gpuPtr = GL.MapBufferRange(
+                        BufferTarget.ShaderStorageBuffer,
+                        IntPtr.Zero,
+                        sizeof(Light) * lightArray.Length,
+                        MapBufferAccessMask.MapWriteBit |
+                        MapBufferAccessMask.MapInvalidateBufferBit
+                    );
 
-                GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
+                    Buffer.MemoryCopy(
+                        src,
+                        gpuPtr.ToPointer(),
+                        sizeof(Light) * lightArray.Length,
+                        sizeof(Light) * lightArray.Length
+                    );
+
+                    GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
+                }
             }
         }
+
+        if (GlobalLights.Count != 0) {
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _globalLightsSsbo);
+            unsafe {
+                GL.BufferData(BufferTarget.ShaderStorageBuffer, sizeof(Light) * GlobalLights.Count, IntPtr.Zero,
+                    BufferUsageHint.DynamicDraw);
+            }
+
+            unsafe {
+                Light[] lightArray = GlobalLights
+                    .Select(lc => lc.LightData)
+                    .ToArray();
+
+                fixed (Light* src = lightArray) {
+                    IntPtr gpuPtr = GL.MapBufferRange(
+                        BufferTarget.ShaderStorageBuffer,
+                        IntPtr.Zero,
+                        sizeof(Light) * lightArray.Length,
+                        MapBufferAccessMask.MapWriteBit |
+                        MapBufferAccessMask.MapInvalidateBufferBit
+                    );
+
+                    Buffer.MemoryCopy(
+                        src,
+                        gpuPtr.ToPointer(),
+                        sizeof(Light) * lightArray.Length,
+                        sizeof(Light) * lightArray.Length
+                    );
+
+                    GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
+                }
+            }
+
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, _globalLightsSsbo);
+        }
+    }
+
+    #endregion
+
+    #region Deferred Shader
+
+    public static void UpdateDeferredShader()
+    {
+        if (_deferredShading == null) return;
+        _deferredShading.Use();
+        _deferredShading.ApplyUniform("screenDimensions", RERL_Core.Window.Size);
+        _deferredShading.ApplyUniform("gridSize", _clusterGridSize);
+        _deferredShading.ApplyUniform("zNear", RERL_Core.Camera.Near);
+        _deferredShading.ApplyUniform("zFar", RERL_Core.Camera.Far);
+        _deferredShading.RegisterAutoUniform("viewMatrix", () => RERL_Core.Camera.GetView());
     }
 
     #endregion

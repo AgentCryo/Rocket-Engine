@@ -47,4 +47,9 @@ vec3 ReconstructWorldPos(vec2 uv, float depth, mat4 invProj, mat4 invView)
 //    gNormal  = EncodeNormal(normal);
 //}
 
+bool IsBitSet(uint value, int bitIndex)
+{
+    return (value & (1u << bitIndex)) != 0;
+}
+
 // common.glsl END

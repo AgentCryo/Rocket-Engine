@@ -1,4 +1,4 @@
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 64) in;
 
 struct Cluster {
     vec3 minPoint;
@@ -9,12 +9,24 @@ struct Cluster {
 };
 
 struct Light {
+    uint  data;      
+    // Data bit layout (uint32):
+    //     [ 1:0  ] LightType
+    //               00 = Point
+    //               01 = Spot
+    //               10 = Directional
+    //     [ 2    ] SmoothEdgeClamping
+    //     [ 3    ] GlobalLight (1 = global, 0 = clustered)
+    //     [ 31:4 ]  Reserved
+    uint _pad0;
+    uint _pad1;
+    uint _pad2;
     vec3  color;
     float intensity;
-    vec3  position;
-    float radius;
-    vec3  direction;
-    float angle;
+    vec3  position;  
+    float radius;    // Distance from light center to farthest lightable point.
+    vec3  direction; // Only used for cone lights, (and sun lights that only exist in the lighting shader since they are global)
+    float angle;     // 0 for point lights, >0 for cone lights.
 };
 
 layout(std430, binding = 1) restrict buffer clustersSSBO {
@@ -22,44 +34,205 @@ layout(std430, binding = 1) restrict buffer clustersSSBO {
 };
 
 layout(std430, binding = 2) restrict buffer lightsSSBO {
-    Light lights[];
+    Light lights[];  // Global lights won't be in this array.
+};
+
+layout(std430, binding = 3) restrict buffer globalLightsSSBO {
+    Light globalLights[];  // Global lights will be in this array.
 };
 
 uniform mat4 viewMatrix;
 uniform ivec3 gridSize;
 
-bool checkSphereAABB(uint i, Cluster c)
+uniform float zNear;
+uniform float zFar;
+uniform float tanHalfFovX;
+uniform float tanHalfFovY;
+
+// Shared memory
+shared uint sLightCount;
+shared uint sLightIndices[128];
+shared vec3 sMin;
+shared vec3 sMax;
+
+// ====== Intersection helpers ======
+
+bool sphereInFrustum(vec3 p, float r)
 {
-    vec3 center = vec3(viewMatrix * vec4(lights[i].position, 1.0));
-    float radius = lights[i].radius;
+    if (p.z + r < zNear || p.z - r > zFar)
+        return false;
 
-    vec3 aabbMin = c.minPoint;
-    vec3 aabbMax = c.maxPoint;
+    float halfW = p.z * tanHalfFovX;
+    if (p.x < -halfW - r || p.x > halfW + r)
+        return false;
 
-    vec3 closestPoint = clamp(center, aabbMin, aabbMax);
-    float distanceSquared = dot(closestPoint - center, closestPoint - center);
-    return distanceSquared <= radius * radius;
+    float halfH = p.z * tanHalfFovY;
+    if (p.y < -halfH - r || p.y > halfH + r)
+        return false;
+
+    return true;
+}
+
+bool checkSphereAABB(vec3 center, float radius, vec3 bmin, vec3 bmax)
+{
+    vec3 closest = clamp(center, bmin, bmax);
+    vec3 d = closest - center;
+    return dot(d, d) <= radius * radius;
+}
+
+bool pointInCone(vec3 p, vec3 apex, vec3 dir, float cosAngle, float height)
+{
+    vec3 v = p - apex;
+    float h = dot(v, dir);
+    if (h < 0.0 || h > height)
+        return false;
+
+    float len = length(v);
+    float cosTheta = h / len;
+    return cosTheta >= cosAngle;
+}
+
+bool checkConeAABB(vec3 apex, vec3 dir, float height, float cosAngle, vec3 bmin, vec3 bmax)
+{
+    // Early reject: AABB center behind cone
+    vec3 center = 0.5 * (bmin + bmax);
+    if (dot(center - apex, dir) < 0.0)
+        return false;
+
+    // AABB corners
+    vec3 corners[8];
+    corners[0] = vec3(bmin.x, bmin.y, bmin.z);
+    corners[1] = vec3(bmax.x, bmin.y, bmin.z);
+    corners[2] = vec3(bmin.x, bmax.y, bmin.z);
+    corners[3] = vec3(bmax.x, bmax.y, bmin.z);
+    corners[4] = vec3(bmin.x, bmin.y, bmax.z);
+    corners[5] = vec3(bmax.x, bmin.y, bmax.z);
+    corners[6] = vec3(bmin.x, bmax.y, bmax.z);
+    corners[7] = vec3(bmax.x, bmax.y, bmax.z);
+
+    for (int k = 0; k < 8; ++k)
+    {
+        vec3 v = corners[k] - apex;
+        float h = dot(v, dir);
+        if (h < 0.0 || h > height)
+            continue;
+
+        if (pointInCone(corners[k], apex, dir, cosAngle, height))
+            return true;
+    }
+
+    // Apex inside AABB
+    if (all(greaterThanEqual(apex, bmin)) &&
+        all(lessThanEqual(apex, bmax)))
+        return true;
+
+    return false;
+}
+
+const uint LIGHT_POINT       = 0u;
+const uint LIGHT_SPOT        = 1u;
+const uint LIGHT_DIRECTIONAL = 2u;
+
+uint GetLightType(uint data)
+{
+    return data & 0x3u; // bits 0-1
+}
+
+bool IsGlobalLight(uint data)
+{
+    return (data & (1u << 3)) != 0u; // bit 3
 }
 
 void main()
 {
-   uint clusterIndex = gl_GlobalInvocationID.x;
-   if (clusterIndex >= gridSize.x * gridSize.y * gridSize.z)
-       return;
-    
-   Cluster c = clusters[clusterIndex];
-   c.lightCount = 0;
+    uint clusterIndex = gl_WorkGroupID.x;
+    uint lane         = gl_LocalInvocationID.x;
+    uint lanes        = gl_WorkGroupSize.x;
 
-   uint totalLights = lights.length();
+    uint totalClusters = gridSize.x * gridSize.y * gridSize.z;
+    if (clusterIndex >= totalClusters)
+        return;
 
-   for (uint i = 0; i < totalLights; ++i)
-   {
-       if (c.lightCount < 128 && checkSphereAABB(i, c))
-       {
-           c.lightIndices[c.lightCount] = i;
-           c.lightCount++;
-       }
-   }
-   
-   clusters[clusterIndex] = c;
+    uint totalLights = lights.length();
+
+    if (lane == 0)
+    {
+        sLightCount = 0u;
+        sMin = clusters[clusterIndex].minPoint;
+        sMax = clusters[clusterIndex].maxPoint;
+    }
+    barrier();
+
+    vec3 bmin = sMin;
+    vec3 bmax = sMax;
+
+    for (uint i = lane; i < totalLights; i += lanes)
+    {
+        Light L = lights[i];
+
+        vec3 center = vec3(viewMatrix * vec4(L.position, 1.0));
+        float radius = L.radius;
+
+        uint type = GetLightType(L.data);
+
+        switch (type)
+        {
+            case LIGHT_DIRECTIONAL:
+            {
+                // Frustum test
+                if (!sphereInFrustum(center, radius)) break;
+
+                // Sphere vs cluster AABB
+                if (!checkSphereAABB(center, radius, bmin, bmax)) break;
+
+                uint idx = atomicAdd(sLightCount, 1u);
+                if (idx < 128u) sLightIndices[idx] = i;
+                break;
+            }
+
+            case LIGHT_POINT:
+            {
+                // Frustum test
+                if (!sphereInFrustum(center, radius)) break;
+
+                // Sphere vs cluster AABB
+                if (!checkSphereAABB(center, radius, bmin, bmax)) break;
+
+                uint idx = atomicAdd(sLightCount, 1u);
+                if (idx < 128u) sLightIndices[idx] = i;
+                break;
+            }
+
+            case LIGHT_SPOT:
+            {
+                // Frustum test
+                if (!sphereInFrustum(center, radius)) break;
+
+                // Sphere vs cluster AABB
+                if (!checkSphereAABB(center, radius, bmin, bmax)) break;
+
+                vec3 dir = normalize(mat3(viewMatrix) * L.direction);
+                float cosAngle = cos(L.angle);
+
+                if (!checkConeAABB(center, dir, radius, cosAngle, bmin, bmax)) break;
+
+                uint idx = atomicAdd(sLightCount, 1u);
+                if (idx < 128u) sLightIndices[idx] = i;
+                break;
+            }
+        }
+    }
+
+    barrier();
+
+    if (lane == 0)
+    {
+        Cluster c = clusters[clusterIndex];
+        c.lightCount = min(sLightCount, 128u);
+
+        for (uint j = 0u; j < c.lightCount; ++j)
+            c.lightIndices[j] = sLightIndices[j];
+
+        clusters[clusterIndex] = c;
+    }
 }

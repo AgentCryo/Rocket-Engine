@@ -98,6 +98,20 @@ public class Transform(Vector3 position, Quaternion rotation, Vector3 scale) : I
         return this;
     }
 
+        
+    Func<Vector3>? _posListener = null;
+    public Transform SetPositionListener(Func<Vector3> posListener) {_posListener = posListener; return this;}
+    
+    Func<Vector3>? _rotDegListener = null;
+    public Transform SetRotationInDegreesListener(Func<Vector3> rotDegListener) {_rotDegListener = rotDegListener; return this;}
+    
+    Func<Quaternion>? _rotListener = null;
+    public Transform SetRotationListener(Func<Quaternion> rotListener) {_rotListener = rotListener; return this;}
+    
+    Func<Vector3>? _scaleListener = null;
+    public Transform SetScaleListener(Func<Vector3> scaleListener) {_scaleListener = scaleListener; return this;}
+
+    
     /// <summary>
     /// Gets the forward direction of the transform in world space.
     /// </summary>
@@ -156,8 +170,13 @@ public class Transform(Vector3 position, Quaternion rotation, Vector3 scale) : I
 
 
     public void Load() {}
-    
-    public void Update(float deltaTime) {}
+
+    public void Update(float deltaTime) {
+        if(_posListener != null) Position = _posListener.Invoke();
+        if(_rotDegListener != null) Rotation = Quaternion.FromEulerAngles(_rotDegListener.Invoke());
+        if(_rotListener != null) Rotation = _rotListener.Invoke();
+        if(_scaleListener != null) Scale = _scaleListener.Invoke();
+    }
     
     public void OnAdd() {}
 }
