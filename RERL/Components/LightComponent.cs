@@ -19,6 +19,14 @@ public enum LightType : uint
 
 public class LightComponent : IComponent
 {
+    public LightComponent(LightType type)
+    {
+        LightData = new RenderData.Light();
+        LightData.Data = 0;
+        LightType = type;
+        SetDirection((0, 0));
+    }
+    
     public Entity Owner      { get; set; }
     public bool AutoRegister { get; set; } = true;
     bool _isGlobal = false;
@@ -29,13 +37,52 @@ public class LightComponent : IComponent
         set => BitHelper.WriteBits(ref LightData.Data, 0, 2, (uint)value);
         get => (LightType)BitHelper.ReadBits(LightData.Data, 0, 2);
     }
-    
-    public LightComponent(LightType type)
-    {
-        LightData = new RenderData.Light();
-        LightData.Data = 0;
-        LightType = type;
+
+    #region Create Helpers
+
+    public static LightComponent CreatePoint(
+        float radius,
+        float intensity,
+        Vector3 color,
+        bool global = false) {
+        return new LightComponent(LightType.Point)
+            .SetRadius(radius)
+            .SetIntensity(intensity)
+            .SetColor(color)
+            .SetGlobal(global);
     }
+
+    public static LightComponent CreateSpot(
+        float radius,
+        float angleDeg,
+        float intensity,
+        Vector3 color,
+        Vector2 directionDeg,
+        bool global = false) {
+        return new LightComponent(LightType.Spot)
+            .SetRadius(radius)
+            .SetAngle(float.DegreesToRadians(angleDeg))
+            .SetIntensity(intensity)
+            .SetColor(color)
+            .SetDirection(directionDeg)
+            .SetGlobal(global);
+    }
+
+    public static LightComponent CreateDirectional(
+        Vector2 directionDeg,
+        float intensity,
+        Vector3 color,
+        bool global = false) {
+        return new LightComponent(LightType.Directional)
+            .SetDirection(directionDeg)
+            .SetIntensity(intensity)
+            .SetColor(color)
+            .SetGlobal(global);
+    }
+
+    #endregion
+
+    #region Setters
 
     public LightComponent SetAutoRegister(bool autoRegister) {
         AutoRegister = autoRegister;
@@ -71,17 +118,46 @@ public class LightComponent : IComponent
 
     /// <param name="angle">Sets the angle in radians.</param>
     public LightComponent SetAngle(float angle)           {LightData.Angle = angle; return this;}
-    
+
+    #endregion
+
+    #region Transform Functions
+
     Func<Vector3>? _posListener = null;
     public LightComponent SetPositionListener(Func<Vector3> posListener) {_posListener = posListener; return this;}
     
     Func<Vector3>? _dirListener = null;
     public LightComponent SetDirectionListener(Func<Vector3> dirListener) {_dirListener = dirListener; return this;}
+    
+    public LightComponent Follow(Transform transform)
+    {
+        SetPositionListener(() => transform.Position);
+        SetDirectionListener(() => transform.Forward);
+        return this;
+    }
 
+    #endregion
+
+    #region Light Data Interface
+
+    public LightComponent Enable(params LightConfig[] configs)
+    {
+        foreach (var cfg in configs)
+            Enable(cfg);
+        return this;
+    }
+    
+    public LightComponent Disable(params LightConfig[] configs)
+    {
+        foreach (var cfg in configs)
+            Disable(cfg);
+        return this;
+    }
+    
     public LightComponent Enable(LightConfig lightConfig)
     {
         switch (lightConfig) {
-            case Components.LightConfig.SmoothEdgeClamping: BitHelper.SetBit(ref LightData.Data, 2); break;
+            case LightConfig.SmoothEdgeClamping: BitHelper.SetBit(ref LightData.Data, 2); break;
         }
 
         return this;
@@ -90,12 +166,16 @@ public class LightComponent : IComponent
     public LightComponent Disable(LightConfig lightConfig)
     {
         switch (lightConfig) {
-            case Components.LightConfig.SmoothEdgeClamping: BitHelper.ClearBit(ref LightData.Data, 2); break;
+            case LightConfig.SmoothEdgeClamping: BitHelper.ClearBit(ref LightData.Data, 2); break;
         }
         
         return this;
     }
-    
+
+    #endregion
+
+    #region Component Interface
+
     public void Load() { }
 
     public void Update(float deltaTime)
@@ -109,4 +189,71 @@ public class LightComponent : IComponent
         if (!AutoRegister) return;
         if (_isGlobal) RenderPipeline.RegisterGlobalLight(this); else RenderPipeline.RegisterLight(this);
     }
+
+    #endregion
+}
+
+public class LightBuilder
+{
+    readonly LightComponent _light;
+    LightBuilder(LightType type) => _light = new LightComponent(type);
+
+    #region Types
+
+    public static LightBuilder Point()        => new LightBuilder(LightType.Point);
+    public static LightBuilder Spot()         => new LightBuilder(LightType.Spot);
+    public static LightBuilder Directional()  => new LightBuilder(LightType.Directional);
+
+    #endregion
+
+    #region Setters
+
+    public LightBuilder Radius(float r) {
+        _light.SetRadius(r);
+        return this;
+    }
+
+    public LightBuilder Intensity(float i) {
+        _light.SetIntensity(i);
+        return this;
+    }
+
+    public LightBuilder Color(Vector3 c) {
+        _light.SetColor(c);
+        return this;
+    }
+
+    public LightBuilder Global(bool g = true) {
+        _light.SetGlobal(g);
+        return this;
+    }
+
+    public LightBuilder DirectionDegrees(Vector2 eulerDegrees) {
+        _light.SetDirection(eulerDegrees);
+        return this;
+    }
+
+    public LightBuilder AngleDegrees(float deg) {
+        _light.SetAngle(float.DegreesToRadians(deg));
+        return this;
+    }
+
+    public LightBuilder Follow(Transform t) {
+        _light.Follow(t);
+        return this;
+    }
+
+    public LightBuilder Enable(params LightConfig[] cfg) {
+        _light.Enable(cfg);
+        return this;
+    }
+
+    public LightBuilder Disable(params LightConfig[] cfg) {
+        _light.Disable(cfg);
+        return this;
+    }
+
+    #endregion
+    
+    public LightComponent Build() => _light;
 }

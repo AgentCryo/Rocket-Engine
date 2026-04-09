@@ -68,83 +68,80 @@ public class Game : GameWindow
         {
             var sun = new Entity("GlobalSun");
 
-            sun.AddComponent(new LightComponent(LightType.Directional)
-                .SetGlobal(true)
-                .SetColor((1f, 1f, 1f))
-                .SetIntensity(3f)
-                .SetDirection(new Vector2(-105f, 3f))
-            );
+            //sun.AddComponent(
+            //    LightBuilder.Directional()
+            //        .DirectionDegrees((-105f, 3f))
+            //        .Intensity(3f)
+            //        .Color(new Vector3(1f))
+            //        .Global()
+            //        .Build()
+            //);
 
             MainScene.AddEntity(sun);
         }
         // Spotlight
         {
-            var spotLight = new Entity("Spotlight") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
-            spotLight.AddComponent(new LightComponent(LightType.Spot)
-                .SetPositionListener(() => spotLight.Transform.Position)
-                .SetRadius(2000)
-                .SetColor((1,1,1))
-                .SetIntensity(12)
-                .SetAngle(float.DegreesToRadians(45f))
-                .SetDirection((0,0))
-                .Enable(LightConfig.SmoothEdgeClamping)
+            var spot = new Entity("Spotlight") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
+
+            spot.AddComponent(
+                LightBuilder.Spot()
+                    .Radius(2000)
+                    .AngleDegrees(45)
+                    .Intensity(12)
+                    .Color(new Vector3(1))
+                    .Build()
+                    .SetPositionListener(() => spot.Transform.Position)
+                    .Enable(LightConfig.SmoothEdgeClamping)
             );
-    
-            MainScene.AddEntity(spotLight);
+
+            MainScene.AddEntity(spot);
         }
         // Light A
         {
             var lightA = new Entity("Light A") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
 
-            lightA.AddComponent(new LightComponent(LightType.Point)
-                .SetPositionListener(() => lightA.Transform.Position)
-                .SetRadius(6)
-                .SetColor((1,1,1))
-                .SetIntensity(5f)
-                .Enable(LightConfig.SmoothEdgeClamping)
+            lightA.AddComponent(
+                LightBuilder.Point()
+                    .Radius(6)
+                    .Intensity(5)
+                    .Color(new Vector3(1))
+                    .Build()
+                    .SetPositionListener(() => lightA.Transform.Position)
+                    .Enable(LightConfig.SmoothEdgeClamping)
             );
-            
+
             MainScene.AddEntity(lightA);
         }
         // Light B
         {
             var lightB = new Entity("Light B") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
 
-            lightB.AddComponent(new LightComponent(LightType.Point)
-                .SetPositionListener(() => lightB.Transform.Position)
-                .SetRadius(6)
-                .SetColor((1, 1, 1))
-                .SetIntensity(2f)
-                .Enable(LightConfig.SmoothEdgeClamping)
+            lightB.AddComponent(
+                LightBuilder.Point()
+                    .Radius(6)
+                    .Intensity(2)
+                    .Color(new Vector3(1))
+                    .Build()
+                    .SetPositionListener(() => lightB.Transform.Position)
+                    .Enable(LightConfig.SmoothEdgeClamping)
             );
-            
+
             MainScene.AddEntity(lightB);
         }
-        {
-            // === Add hundreds of randomly orbiting lights ===
+        { // Light orbit things.
             Random rng = new Random(314159);
 
-            int lightCount = 300;
-            float minRadius = 3f;
-            float maxRadius = 25f;
-            float minSpeed  = 0.2f;
-            float maxSpeed  = 1.2f;
+            int   count = 300;
+            float minR = 3f, maxR = 25f;
+            float minS = 0.2f, maxS = 1.2f;
 
-            for (int i = 0; i < lightCount; i++)
+            for (int i = 0; i < count; i++)
             {
-                // Random orbit radius
-                float radius = MathHelper.Lerp(minRadius, maxRadius, (float)rng.NextDouble());
+                float radius      = float.Lerp(minR, maxR, (float)rng.NextDouble());
+                float inclination = float.Lerp(-float.Pi * 0.4f, float.Pi * 0.4f, (float)rng.NextDouble());
+                float speed       = float.Lerp(minS, maxS, (float)rng.NextDouble());
+                float phase       = (float)rng.NextDouble() * float.Tau;
 
-                // Random inclination (tilt of orbit plane)
-                float inclination = MathHelper.Lerp(-MathF.PI * 0.4f, MathF.PI * 0.4f, (float)rng.NextDouble());
-
-                // Random orbit speed
-                float speed = MathHelper.Lerp(minSpeed, maxSpeed, (float)rng.NextDouble());
-
-                // Random phase offset so they don't clump
-                float phase = (float)rng.NextDouble() * MathF.Tau;
-
-                // Random color
                 Vector3 color = new Vector3(
                     0.4f + 0.6f * (float)rng.NextDouble(),
                     0.4f + 0.6f * (float)rng.NextDouble(),
@@ -153,27 +150,27 @@ public class Game : GameWindow
 
                 var light = new Entity($"OrbitLight_{i}");
 
-                light.AddComponent(new LightComponent(LightType.Point)
-                    .SetPositionListener(() =>
-                    {
-                        float t = _time * speed + phase;
+                light.AddComponent(
+                    LightBuilder.Point()
+                        .Radius(4f)
+                        .Intensity(1.5f)
+                        .Color(color)
+                        .Global(false)
+                        .Enable(LightConfig.SmoothEdgeClamping)
+                        .Build()
+                        .SetPositionListener(() =>
+                        {
+                            float t = _time * speed + phase;
 
-                        // Base circular orbit in XZ
-                        float x = MathF.Cos(t) * radius;
-                        float z = MathF.Sin(t) * radius;
+                            float x = MathF.Cos(t) * radius;
+                            float z = MathF.Sin(t) * radius;
 
-                        // Apply inclination by rotating around X axis
-                        float y = MathF.Sin(t * 0.5f) * 2f; // small vertical wobble
-                        float zi = z * MathF.Cos(inclination) - y * MathF.Sin(inclination);
-                        float yi = z * MathF.Sin(inclination) + y * MathF.Cos(inclination);
+                            float y  = MathF.Sin(t * 0.5f) * 2f;
+                            float zi = z * MathF.Cos(inclination) - y * MathF.Sin(inclination);
+                            float yi = z * MathF.Sin(inclination) + y * MathF.Cos(inclination);
 
-                        return new Vector3(x, yi + 2.5f, zi); // lift everything up a bit
-                    })
-                    .SetRadius(4f)
-                    .SetColor((color.X, color.Y, color.Z))
-                    .SetIntensity(1.5f)
-                    .Enable(LightConfig.SmoothEdgeClamping)
-                    .SetGlobal(false)
+                            return new Vector3(x, yi + 2.5f, zi);
+                        })
                 );
 
                 MainScene.AddEntity(light);
@@ -182,49 +179,47 @@ public class Game : GameWindow
         // === LightGrid ===
         {
             int gridSize = 21;
-            
+
             for (int gx = 0; gx < gridSize; gx++)
+            for (int gz = 0; gz < gridSize; gz++)
             {
-                for (int gz = 0; gz < gridSize; gz++)
+                var light = new Entity($"GridLight_{gx}_{gz}");
+
+                light.RegisterData("ix", gx);
+                light.RegisterData("iz", gz);
+
+                light.Transform.SetPositionListener(() =>
                 {
-                    var light = new Entity($"GridLight_{gx}_{gz}");
+                    int ix = (int)light.GetData("ix");
+                    int iz = (int)light.GetData("iz");
 
-                    // Store grid coordinates in the entity's data dictionary
-                    light.RegisterData("ix", gx);
-                    light.RegisterData("iz", gz);
+                    float spacing = float.Sin(_time * 0.5f) * 10f;
 
-                    // Dynamic position listener
-                    light.Transform.SetPositionListener(() =>
-                    {
-                        int ix = (int)light.GetData("ix");
-                        int iz = (int)light.GetData("iz");
+                    float x = (ix - (gridSize - 1) / 2f) * spacing;
+                    float z = (iz - (gridSize - 1) / 2f) * spacing;
 
-                        float spacing = float.Sin(_time * 0.5f) * 10f;
+                    return new Vector3(x, 20f, z);
+                });
 
-                        float x = (ix - (gridSize - 1) / 2f) * spacing;
-                        float z = (iz - (gridSize - 1) / 2f) * spacing;
-
-                        return new Vector3(x, 20f, z);
-                    });
-
-                    // Light follows transform
-                    light.AddComponent(new LightComponent(LightType.Point)
+                light.AddComponent(
+                    LightBuilder.Point()
+                        .Radius(3f)
+                        .Intensity(1.5f)
+                        .Color(new Vector3(1))
+                        .Build()
                         .SetPositionListener(() => light.Transform.Position)
-                        .SetRadius(3f)
-                        .SetColor((1, 1, 1))
-                        .SetIntensity(1.5f)
                         .Enable(LightConfig.SmoothEdgeClamping)
-                    );
+                );
 
-                    // Sphere at light position
-                    light.AddComponent(new ModelRenderer()
+                light.AddComponent(
+                    new ModelRenderer()
                         .AttachModel(ModelLoader.IcosahedronMesh)
-                        .AttachShader(RERL_Core.GetPrelightShader()));
+                        .AttachShader(RERL_Core.GetPrelightShader())
+                );
 
-                    light.Transform.Scale = new Vector3(0.15f);
+                light.Transform.Scale = new Vector3(0.15f);
 
-                    MainScene.AddEntity(light);
-                }
+                MainScene.AddEntity(light);
             }
         }
         //// Pong Ico Object
