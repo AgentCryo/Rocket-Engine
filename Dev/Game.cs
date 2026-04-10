@@ -60,6 +60,7 @@ public class Game : GameWindow
         
         RERL_Core.SetCamera(_camera);
         RERL_Core.SetGameWindow(this);
+        GL.ClearColor(Color.FromArgb(255, 20,25,35));
         RERL_Core.Load();
         
         MainScene = new RCS_Core.Scene("Main");
@@ -68,14 +69,14 @@ public class Game : GameWindow
         {
             var sun = new Entity("GlobalSun");
 
-            //sun.AddComponent(
-            //    LightBuilder.Directional()
-            //        .DirectionDegrees((-105f, 3f))
-            //        .Intensity(3f)
-            //        .Color(new Vector3(1f))
-            //        .Global()
-            //        .Build()
-            //);
+            sun.AddComponent(
+                LightBuilder.Directional()
+                    .DirectionDegrees((-105f, 3f))
+                    .Intensity(1f)
+                    .Color(new Vector3(1f))
+                    .Global()
+                    .Build()
+            );
 
             MainScene.AddEntity(sun);
         }

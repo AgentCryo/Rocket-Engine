@@ -8,7 +8,7 @@ namespace RCS;
 /// </summary>
 public static class Logger
 {
-    private static readonly BlockingCollection<string> _queue = new(); // Begone Async!
+    static readonly BlockingCollection<string> _queue = new(); // Begone Async!
     
     static string _activeLoggingFile = "";
     static bool _consoleLogging = false;

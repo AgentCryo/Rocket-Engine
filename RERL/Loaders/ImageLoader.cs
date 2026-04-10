@@ -8,6 +8,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using Buffer = System.Buffer;
 
+namespace RERL.Loaders;
+
 public static class ImageLoader
 {
     static readonly Dictionary<string, int> _textureCache   = new();

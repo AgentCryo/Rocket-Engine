@@ -50,7 +50,6 @@ public static class RERL_Core
         //Console.WriteLine(RERL != null ? $"Library Found: {RERL.FullName}" : "Library not Found");
         //Console.WriteLine(RCS != null ? $"Library Found: {RCS.FullName}" : "Library not Found");
 
-        GL.ClearColor(Color.FromArgb(255, 20,25,35));
         GL.Enable(EnableCap.DepthTest);
         GL.Enable(EnableCap.Blend);
         GL.FrontFace(FrontFaceDirection.Ccw);

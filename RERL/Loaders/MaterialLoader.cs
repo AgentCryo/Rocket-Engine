@@ -24,7 +24,7 @@ public static class MaterialLoader
         DoubleSided = true,
     };
     
-    public static Material LoadGltfMaterial(JsonElement material, JsonElement root, string gltfFilePath)
+    internal static Material LoadGltfMaterial(JsonElement material, JsonElement root, string gltfFilePath)
     {
         var mat = new Material(material.GetProperty("name").GetString());
 

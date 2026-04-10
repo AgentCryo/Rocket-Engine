@@ -11,6 +11,7 @@ namespace RERL.Components;
 /// A component that renders a mesh using a shader.
 /// Handles VAO/VBO/IBO creation, uniform setup, and instanced rendering.
 /// </summary>
+[Obsolete]
 public class MeshRenderer : IComponent, Renderable
 {
     public Entity Owner { get; set; }
