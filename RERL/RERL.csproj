@@ -9,7 +9,7 @@
         <IsPackable>true</IsPackable>
 
         <PackageId>RocketEngine.RERL</PackageId>
-        <Version>0.2.0</Version>
+        <Version>0.3.0</Version>
         <Authors>AgentCryo</Authors>
         <Description>Rocket Engine Rendering Library</Description>
         <PackageTags>graphics;opengl;opentk;rendering;library</PackageTags>
@@ -52,7 +52,7 @@
 
     <!-- Use PackageReference ONLY when packing -->
     <ItemGroup Condition="'$(IsPacking)' == 'true'">
-        <PackageReference Include="RCS" Version="0.2.0" />
+        <PackageReference Include="RCS" Version="0.3.0" />
     </ItemGroup>
 
     <ItemGroup>
