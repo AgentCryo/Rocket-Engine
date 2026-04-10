@@ -1,6 +1,6 @@
 # Rocket Engine
 
-Reference the rocket engine [docs](https://github.com/AgentCryo/Rocket-Engine/wiki).
+Reference the [RocketEngineDocs](https://github.com/AgentCryo/Rocket-Engine/wiki).
 
 ## Dev
 A sandbox environment used for testing new features.  
