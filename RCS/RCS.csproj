@@ -9,7 +9,7 @@
         <IsPackable>true</IsPackable>
 
         <PackageId>RocketEngine.RCS</PackageId>
-        <Version>0.3.0</Version>
+        <Version>0.3</Version>
         <Authors>AgentCryo</Authors>
         <Description>Rocket Control System: Rocket Engine's ECS.</Description>
         <PackageTags>ecs;entity;entity-component-system;component;library</PackageTags>

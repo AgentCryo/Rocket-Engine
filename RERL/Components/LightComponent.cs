@@ -126,13 +126,13 @@ public class LightComponent : IComponent
     Func<Vector3>? _posListener = null;
     public LightComponent SetPositionListener(Func<Vector3> posListener) {_posListener = posListener; return this;}
     
-    Func<Vector3>? _dirListener = null;
-    public LightComponent SetDirectionListener(Func<Vector3> dirListener) {_dirListener = dirListener; return this;}
+    Func<Vector2>? _dirListener = null;
+    public LightComponent SetDirectionListener(Func<Vector2> dirListener) {_dirListener = dirListener; return this;}
     
     public LightComponent Follow(Transform transform)
     {
         SetPositionListener(() => transform.Position);
-        SetDirectionListener(() => transform.Forward);
+        SetDirectionListener(() => transform.Forward.Xy);
         return this;
     }
 
@@ -181,7 +181,7 @@ public class LightComponent : IComponent
     public void Update(float deltaTime)
     {
         if(_posListener != null) LightData.Position = _posListener.Invoke();
-        if(_dirListener != null) LightData.Direction = _dirListener.Invoke();
+        if(_dirListener != null) SetDirection(_dirListener.Invoke());
     }
     
     public void OnAdd()

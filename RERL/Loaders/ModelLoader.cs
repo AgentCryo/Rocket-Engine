@@ -29,9 +29,9 @@ public static class ModelLoader
         public string ParrentName;
     }
     
-    public const string Cube = @"./Models/Cube.glb";
-    public const string Icosahedron = @"./Models/Icosahedron.glb";
-    public const string UVSphere = @"./Models/UVSphere.glb";
+    public const string Cube = @"./RocketEngine/Models/Cube.glb";
+    public const string Icosahedron = @"./RocketEngine/Models/Icosahedron.glb";
+    public const string UVSphere = @"./RocketEngine/Models/UVSphere.glb";
     
     public static Model CubeMesh => ParseMesh(Cube)[0].Model;
     public static Model IcosahedronMesh => ParseMesh(Icosahedron)[0].Model;

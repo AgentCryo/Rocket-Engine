@@ -9,7 +9,7 @@
         <IsPackable>true</IsPackable>
 
         <PackageId>RocketEngine.RERL</PackageId>
-        <Version>0.3.0</Version>
+        <Version>0.3</Version>
         <Authors>AgentCryo</Authors>
         <Description>Rocket Engine Rendering Library</Description>
         <PackageTags>graphics;opengl;opentk;rendering;library</PackageTags>
@@ -43,39 +43,42 @@
         <PackageReference Include="OpenTK.Windowing.GraphicsLibraryFramework" Version="4.9.4" />
         <PackageReference Include="StbDxtSharp" Version="1.10.3" />
         <PackageReference Include="StbImageSharp" Version="2.30.15" />
-    </ItemGroup>
-
-    <!-- Use ProjectReference during normal development -->
-    <ItemGroup Condition="'$(IsPacking)' != 'true'">
         <ProjectReference Include="..\RCS\RCS.csproj" />
     </ItemGroup>
 
-    <!-- Use PackageReference ONLY when packing -->
-    <ItemGroup Condition="'$(IsPacking)' == 'true'">
-        <PackageReference Include="RCS" Version="0.3.0" />
+    <ItemGroup>
+        <None Include="build\RERL.targets" Pack="true" PackagePath="build\" />
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="Shaders\**\*">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <Content Include="RocketEngine/Shaders/**/*">
             <Pack>true</Pack>
-            <PackagePath>RocketEngine\Shaders\</PackagePath>
-            <CopyToOutput>true</CopyToOutput>
+            <PackagePath>contentFiles\any\any\RocketEngine\Shaders\</PackagePath>
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+            <BuildAction>Content</BuildAction>
+            <CopyToOutput>true</CopyToOutput>
+            <Flatten>false</Flatten>
         </Content>
-        <Content Include="Models\**\*">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+
+        <Content Include="RocketEngine/Models/**/*">
             <Pack>true</Pack>
-            <PackagePath>RocketEngine\Models\</PackagePath>
-            <CopyToOutput>true</CopyToOutput>
+            <PackagePath>contentFiles\any\any\RocketEngine\Models\</PackagePath>
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+            <BuildAction>Content</BuildAction>
+            <CopyToOutput>true</CopyToOutput>
+            <Flatten>false</Flatten>
         </Content>
-        <Content Include="Tools\**\*">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+
+        <Content Include="RocketEngine/Tools/**/*">
             <Pack>true</Pack>
-            <PackagePath>RocketEngine\Tools\</PackagePath>
-            <CopyToOutput>true</CopyToOutput>
+            <PackagePath>contentFiles\any\any\RocketEngine\Tools\</PackagePath>
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+            <BuildAction>Content</BuildAction>
+            <CopyToOutput>true</CopyToOutput>
+            <Flatten>false</Flatten>
         </Content>
     </ItemGroup>
 
@@ -91,10 +94,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Models\" />
-      <Folder Include="Shaders\ClusterBuilding\" />
-      <Folder Include="Shaders\LightShaders\" />
-      <Folder Include="Shaders\Templates\" />
+      <Folder Include="RocketEngine\" />
     </ItemGroup>
 
     <PropertyGroup Condition="'$(Configuration)'=='EngineDev'">

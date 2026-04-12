@@ -18,9 +18,9 @@ public class Shader
         Compute
     }
     
-    public const string DefaultVert = "./Shaders/Templates/Default/default.vert";
-    public const string DefaultFrag = "./Shaders/Templates/Default/default.frag";
-    public const string DefaultPostProcessVert = "./Shaders/Templates/DefaultPostProcess/defaultPostProcess.vert";
+    public const string DefaultVert = "./RocketEngine/Shaders/Templates/Default/default.vert";
+    public const string DefaultFrag = "./RocketEngine/Shaders/Templates/Default/default.frag";
+    public const string DefaultPostProcessVert = "./RocketEngine/Shaders/Templates/DefaultPostProcess/defaultPostProcess.vert";
     
     internal int Handle { get; set; }
     internal readonly Dictionary<string, int> _uniformCache = new();
@@ -55,22 +55,22 @@ public class Shader
             case ShaderType.Shader:
                 finalFragmentSource =
                     "#version 460 core\n" +
-                    File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
-                    File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
                     fragmentSource; break;
             case ShaderType.Prelight:
                 finalFragmentSource =
                     "#version 460 core\n" +
                     "#extension GL_ARB_bindless_texture : require\n" +
-                    File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
-                    File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
                     fragmentSource; break;
             case ShaderType.PostProcess:
                 finalFragmentSource =
                     "#version 460 core\n" +
-                    File.ReadAllText("./Shaders/Helpers/gbuffer.glsl") + "\n" +
-                    File.ReadAllText("./Shaders/Helpers/gbufferSampler.glsl") + "\n" +
-                    File.ReadAllText("./Shaders/Helpers/common.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbufferSampler.glsl") + "\n" +
+                    File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
                     fragmentSource; break;
         }
         

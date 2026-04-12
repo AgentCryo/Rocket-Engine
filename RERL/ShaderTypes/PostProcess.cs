@@ -33,6 +33,10 @@ public class PostProcess : Shader
     public void RenderPostProcess(GBuffer gbuffer, int VAO, bool renderToScreen)
     {
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, renderToScreen ? 0 : gbuffer.GetFBO());
+        if(renderToScreen) {
+            GL.Clear(ClearBufferMask.ColorBufferBit);
+            GL.Clear(ClearBufferMask.DepthBufferBit);
+        }
 
         Use();
         ApplyAutoUniforms();

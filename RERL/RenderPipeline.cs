@@ -54,7 +54,7 @@ public static class RenderPipeline
         LightManager.Initialize();
         ClusterManager.Initialize();
 
-        _deferredShading = new PostProcess().AttachPostProcessShader("./Shaders/LightShaders/deferredShading.post", RERL_Core.Window);
+        _deferredShading = new PostProcess().AttachPostProcessShader("./RocketEngine/Shaders/LightShaders/deferredShading.post", RERL_Core.Window);
         EnginePostProcesses.Add(_deferredShading);
         UpdateDeferredShader();
     }
@@ -64,9 +64,10 @@ public static class RenderPipeline
         GL.GenQueries(1, out int query);
         GL.BeginQuery(QueryTarget.TimeElapsed, query);
         
-        if(Lights.Count != 0) LightManager.Rebuild();
+        if(Lights.Count != 0) LightManager.UploadCusterLights();
+        if(GlobalLights.Count != 0) LightManager.UploadGlobalLights();
         GFrame.Clear();
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, (PostProcesses.Count != 0 || EnginePostProcesses.Count != 0) ? GFrame.GetFBO() : 0);
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, (PostProcesses.Count != 0 || EnginePostProcesses.Count != 0) ? GFrame.GetFBO() : 0); 
         
         foreach (var kpv in ShaderBatchRendering)
         {
@@ -104,8 +105,8 @@ public static class RenderPipeline
         GL.Disable(EnableCap.DepthTest);
         if (EnginePostProcesses.Count != 0) // Engine Post Processes
             for (int p = 0; p < EnginePostProcesses.Count; p++)
-                EnginePostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, p != PostProcesses.Count - 1);
-
+                EnginePostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, (p == EnginePostProcesses.Count -1 && PostProcesses.Count == 0));
+        
         if (PostProcesses.Count != 0) // User Post Processes
             for (int p = 0; p < PostProcesses.Count; p++)
                 PostProcesses[p].RenderPostProcess(GFrame, _postProcessingQuad_VAO, (p == PostProcesses.Count - 1));
@@ -268,11 +269,8 @@ public static class RenderPipeline
             Initialized = true;
         }
 
-        internal static void Rebuild()
-        {
-            UploadLightArray(Lights, LightsSsbo, 2);
-            UploadLightArray(GlobalLights, GlobalLightsSsbo, 3);
-        }
+        internal static void UploadCusterLights() => UploadLightArray(Lights, LightsSsbo, 2);
+        internal static void UploadGlobalLights() => UploadLightArray(GlobalLights, GlobalLightsSsbo, 3);
 
         static unsafe void UploadLightArray(List<LightComponent> list, int ssbo, int binding)
         {
@@ -313,8 +311,8 @@ public static class RenderPipeline
         internal static void Initialize()
         {
             ClustersSsbo = GL.GenBuffer();
-            Builder = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterBuilder.comp");
-            Lighter = (Compute)new Compute().AttachComputeShader("./Shaders/ClusterBuilding/clusterLighter.comp");
+            Builder = (Compute)new Compute().AttachComputeShader("./RocketEngine/Shaders/ClusterBuilding/clusterBuilder.comp");
+            Lighter = (Compute)new Compute().AttachComputeShader("./RocketEngine/Shaders/ClusterBuilding/clusterLighter.comp");
 
             AllocateClusterBuffer();
             UpdateShaderUniforms();

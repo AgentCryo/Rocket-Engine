@@ -154,7 +154,7 @@ public static class ImageLoader
             string cacheDir = Path.GetDirectoryName(ddsOutPath)!;
             Directory.CreateDirectory(cacheDir);
 
-            string texconvPath = Path.Combine(AppContext.BaseDirectory, "Tools", "texconv.exe");
+            string texconvPath = Path.Combine(AppContext.BaseDirectory, "RocketEngine/Tools", "texconv.exe");
             string args = $"-f R8G8B8A8_UNORM -nologo -m 1 -srgb:i -o \"{cacheDir}\" \"{sourcePath}\"";
 
             var psi = new ProcessStartInfo

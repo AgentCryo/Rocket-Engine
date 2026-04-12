@@ -1,0 +1,18 @@
+<Project>
+    <ItemGroup>
+        <Content Include="$(MSBuildThisPackageRoot)contentFiles\any\any\RocketEngine\Models\**\*">
+            <Link>Models\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+
+        <Content Include="$(MSBuildThisPackageRoot)contentFiles\any\any\RocketEngine\Shaders\**\*">
+            <Link>Shaders\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+
+        <Content Include="$(MSBuildThisPackageRoot)contentFiles\any\any\RocketEngine\Tools\**\*">
+            <Link>Tools\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+</Project>

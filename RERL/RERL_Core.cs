@@ -55,7 +55,7 @@ public static class RERL_Core
         GL.FrontFace(FrontFaceDirection.Ccw);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
         
-        _preLightShader = new Shader().AttachGraphicsShader("./Shaders/Prelight/prelight.vert", "./Shaders/Prelight/prelight.frag", Shader.ShaderType.Prelight);
+        _preLightShader = new Shader().AttachGraphicsShader("./RocketEngine/Shaders/Prelight/prelight.vert", "./RocketEngine/Shaders/Prelight/prelight.frag", Shader.ShaderType.Prelight);
         RegisterShader(_preLightShader);
         
         InitializeRenderPipeline();
