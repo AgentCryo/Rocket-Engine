@@ -27,7 +27,7 @@ RCS is the Entity Component System (ECS) used by Rocket Engine. It also acts as 
 
 ---
 
-## RERL — Rocket Engine Rendering Library v0.2
+## RERL — Rocket Engine Rendering Library v0.2.7
 A standalone rendering library built for Rocket Engine.
 
 **Done:**
