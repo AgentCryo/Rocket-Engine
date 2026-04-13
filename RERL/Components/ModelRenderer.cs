@@ -223,8 +223,9 @@ public class ModelRenderer : IComponent, Renderable
     {
         if (_model is not { } model) { Logger.Warning("ModelRenderer added without a model."); return; }
         if (_shader == null) { Logger.Warning("ModelRenderer added without a shader."); return; }
-        
-        _shader.Use();
+
+        //GL.GetInteger(GetPName.CurrentProgram, out var activeShader);
+        //if(activeShader != _shader.Handle) _shader.Use();
         _shader.ApplyUniform("uModel", Owner.Transform.WorldMatrix, false);
 
         GL.BindVertexArray(_vao);

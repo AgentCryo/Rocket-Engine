@@ -25,8 +25,7 @@ public class Camera
     /// Sets the projection matrix using a vertical field of view (in degrees).
     /// </summary>
     /// <param name="aspect">Screen width / Screen Height.</param>
-    public void SetProjectionFovYInDegrees(float fovY, float aspect, float near, float far)
-    {
+    public void SetProjectionFovYInDegrees(float fovY, float aspect, float near, float far) {
         Near = near;
         Far = far;
         _projection = CreatePerspectiveFieldOfViewLH(float.DegreesToRadians(fovY), aspect, near, far);
@@ -36,16 +35,14 @@ public class Camera
     /// Sets the projection matrix using a horizontal field of view (in degrees).
     /// </summary>
     /// <param name="aspect">Screen width / Screen Height.</param>
-    public void SetProjectionFovXInDegrees(float fovX, float aspect, float near, float far)
-    {
+    public void SetProjectionFovXInDegrees(float fovX, float aspect, float near, float far) {
         Near = near;
         Far = far;
         float fovY = 2f * MathF.Atan(MathF.Tan(MathHelper.DegreesToRadians(fovX) / 2f) / aspect);
         _projection = CreatePerspectiveFieldOfViewLH(fovY, aspect, near, far);
     }
 
-    public static Matrix4 CreatePerspectiveFieldOfViewLH(float fov, float aspect, float near, float far)
-    {
+    public static Matrix4 CreatePerspectiveFieldOfViewLH(float fov, float aspect, float near, float far) {
         float f = 1f / MathF.Tan(fov / 2f);
 
         return new Matrix4(
@@ -59,8 +56,7 @@ public class Camera
     /// <summary>
     /// Updates the view matrix based on the camera's position and rotation.
     /// </summary>
-    public void UpdateViewMatrix()
-    {
+    public void UpdateViewMatrix() {
         // Build camera world transform
         Matrix4 world =
             Matrix4.CreateFromQuaternion(_rotation) *

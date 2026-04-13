@@ -50,30 +50,24 @@ public class Shader
         GL.CompileShader(vertexShader);
         CheckCompile(vertexShader, "VERTEX", vertexPath);
 
-        string finalFragmentSource = "#version 460 core\n" + fragmentSource;
-        switch (shaderType) {
-            case ShaderType.Shader:
-                finalFragmentSource =
-                    "#version 460 core\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
-                    fragmentSource; break;
-            case ShaderType.Prelight:
-                finalFragmentSource =
-                    "#version 460 core\n" +
-                    "#extension GL_ARB_bindless_texture : require\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
-                    fragmentSource; break;
-            case ShaderType.PostProcess:
-                finalFragmentSource =
-                    "#version 460 core\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/gbufferSampler.glsl") + "\n" +
-                    File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
-                    fragmentSource; break;
-        }
-        
+        string finalFragmentSource = shaderType switch
+        {
+            //Todo: Clean up and optimize.
+            ShaderType.Shader => "#version 460 core\n" +
+                                 File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
+                                 File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" + fragmentSource,
+            ShaderType.Prelight => "#version 460 core\n" + "#extension GL_ARB_bindless_texture : require\n" +
+                                   File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
+                                   File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
+                                   fragmentSource,
+            ShaderType.PostProcess => "#version 460 core\n" +
+                                      File.ReadAllText("./RocketEngine/Shaders/Helpers/gbuffer.glsl") + "\n" +
+                                      File.ReadAllText("./RocketEngine/Shaders/Helpers/gbufferSampler.glsl") + "\n" +
+                                      File.ReadAllText("./RocketEngine/Shaders/Helpers/common.glsl") + "\n" +
+                                      fragmentSource,
+            _ => "#version 460 core\n" + fragmentSource
+        };
+
         int fragmentShader = GL.CreateShader(OpenTK.Graphics.OpenGL4.ShaderType.FragmentShader);
         if (fragmentShader == -1) throw new Exception("ERR: Fragment Shader could not be created!");
         GL.ShaderSource(fragmentShader, finalFragmentSource);

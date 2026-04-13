@@ -157,8 +157,7 @@ public static class ImageLoader
             string texconvPath = Path.Combine(AppContext.BaseDirectory, "RocketEngine/Tools", "texconv.exe");
             string args = $"-f R8G8B8A8_UNORM -nologo -m 1 -srgb:i -o \"{cacheDir}\" \"{sourcePath}\"";
 
-            var psi = new ProcessStartInfo
-            {
+            var psi = new ProcessStartInfo {
                 FileName = texconvPath,
                 Arguments = args,
                 UseShellExecute = false,
@@ -175,28 +174,23 @@ public static class ImageLoader
             Logger.Log($"texconv stdout: {stdout}");
             Logger.Log($"texconv stderr: {stderr}");
 
-            if (proc.ExitCode != 0)
-            {
+            if (proc.ExitCode != 0) {
                 Logger.Warning($"texconv failed for {sourcePath}: {proc.StandardError.ReadToEnd()}");
                 return false;
             }
 
-            string produced = Path.Combine(cacheDir,
-                Path.GetFileNameWithoutExtension(sourcePath) + ".dds");
+            string produced = Path.Combine(cacheDir, Path.GetFileNameWithoutExtension(sourcePath) + ".dds");
 
-            if (!File.Exists(produced))
-            {
+            if (!File.Exists(produced)) {
                 Logger.Warning($"texconv did not produce expected file: {produced}");
                 return false;
             }
 
-            if (!produced.Equals(ddsOutPath, StringComparison.OrdinalIgnoreCase))
-            {
-                if (File.Exists(ddsOutPath))
-                    File.Delete(ddsOutPath);
+            if (produced.Equals(ddsOutPath, StringComparison.OrdinalIgnoreCase)) return true;
+            
+            if (File.Exists(ddsOutPath)) File.Delete(ddsOutPath);
 
-                File.Move(produced, ddsOutPath);
-            }
+            File.Move(produced, ddsOutPath);
 
             return true;
         }
@@ -259,9 +253,8 @@ public static class ImageLoader
         public uint Reserved2;
     }
     
-    static PixelInternalFormat DxgiToGL(uint dxgi)
-    {
-        return dxgi switch
+    static PixelInternalFormat DxgiToGL(uint dxgi) =>
+        dxgi switch
         {
             28 => PixelInternalFormat.Rgba8,          // DXGI_FORMAT_R8G8B8A8_UNORM
             29 => PixelInternalFormat.Srgb8Alpha8,    // DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
@@ -282,18 +275,15 @@ public static class ImageLoader
 
             _ => throw new NotSupportedException($"DXGI format {dxgi} not supported")
         };
-    }
 
     static int LoadDdsTexture(string ddsPath)
     {
         using var fs = File.OpenRead(ddsPath);
         using var br = new BinaryReader(fs);
 
-        if (br.ReadUInt32() != 0x20534444)
-            throw new Exception("Not a DDS file");
+        if (br.ReadUInt32() != 0x20534444) Logger.Error("Not a DDS file");
 
-        DDSHeader header = new DDSHeader
-        {
+        DDSHeader header = new DDSHeader {
             Size = br.ReadUInt32(),
             Flags = br.ReadUInt32(),
             Height = br.ReadUInt32(),
@@ -305,8 +295,7 @@ public static class ImageLoader
 
         br.ReadBytes(11 * 4);
 
-        DDSPixelFormat pf = new DDSPixelFormat
-        {
+        DDSPixelFormat pf = new DDSPixelFormat {
             Size = br.ReadUInt32(),
             Flags = br.ReadUInt32(),
             FourCC = br.ReadUInt32(),
@@ -339,9 +328,7 @@ public static class ImageLoader
             };
 
             internalFormat = DxgiToGL(dx10.DxgiFormat);
-        } else {
-            internalFormat = PixelInternalFormat.Srgb8Alpha8;
-        }
+        } else internalFormat = PixelInternalFormat.Srgb8Alpha8;
 
         int width = (int)header.Width;
         int height = (int)header.Height;
@@ -352,8 +339,7 @@ public static class ImageLoader
         byte[] flipped = new byte[dataSize];
         int rowBytes = width * 4;
 
-        for (int row = 0; row < height; row++)
-        {
+        for (int row = 0; row < height; row++) {
             int src = row * rowBytes;
             int dst = (height - 1 - row) * rowBytes;
             Buffer.BlockCopy(data, src, flipped, dst, rowBytes);
@@ -400,8 +386,7 @@ public static class ImageLoader
     
     public static ulong GetBindlessHandle(int texId)
     {
-        if (_bindlessCache.TryGetValue(texId, out ulong handle))
-        {
+        if (_bindlessCache.TryGetValue(texId, out ulong handle)) {
             Logger.Log($"[Bindless] Reusing handle for tex {texId}: 0x{handle:X16}");
             return handle;
         }
@@ -419,15 +404,13 @@ public static class ImageLoader
 
     public static void DisposeTexture(int texId)
     {
-        if (_bindlessCache.TryGetValue(texId, out ulong handle))
-        {
+        if (_bindlessCache.TryGetValue(texId, out ulong handle)) {
             Logger.Log($"[Bindless] Making handle non-resident for tex {texId}: 0x{handle:X16}");
             GL.Arb.MakeTextureHandleNonResident(handle);
             _bindlessCache.Remove(texId);
         }
 
-        if (texId != 0)
-        {
+        if (texId != 0) {
             Logger.Log($"Deleting texture {texId}");
             GL.DeleteTexture(texId);
         }
@@ -445,15 +428,8 @@ public static class ImageLoader
         Logger.Log($"[Bindless]   Hi: {hi} (0x{hi:X8})");
     }
 
-    static void LogBindlessReuse(int texId)
-    {
-        if (_bindlessCache.TryGetValue(texId, out ulong handle))
-        {
-            Logger.Log($"[Bindless] Reusing handle for tex {texId}: 0x{handle:X16}");
-        }
-        else
-        {
-            Logger.Log($"[Bindless] No cached handle for tex {texId} (yet).");
-        }
-    }
+    static void LogBindlessReuse(int texId) =>
+        Logger.Log(_bindlessCache.TryGetValue(texId, out ulong handle)
+            ? $"[Bindless] Reusing handle for tex {texId}: 0x{handle:X16}"
+            : $"[Bindless] No cached handle for tex {texId} (yet).");
 }

@@ -34,19 +34,15 @@ public static class MaterialLoader
         if (!material.TryGetProperty("pbrMetallicRoughness", out var pbr)) return mat;
         
         if (pbr.TryGetProperty("baseColorFactor", out var bc))
-        {
             mat.BaseAlbedo = new Vector3(
                 bc[0].GetSingle(),
                 bc[1].GetSingle(),
                 bc[2].GetSingle()
             );
-        }
 
-        if (pbr.TryGetProperty("roughnessFactor", out var r))
-            mat.BaseRoughness = r.GetSingle();
+        if (pbr.TryGetProperty("roughnessFactor", out var r)) mat.BaseRoughness = r.GetSingle();
 
-        if (pbr.TryGetProperty("metallicFactor", out var m))
-            mat.BaseMetallic = m.GetSingle();
+        if (pbr.TryGetProperty("metallicFactor", out var m)) mat.BaseMetallic = m.GetSingle();
 
         if (pbr.TryGetProperty("baseColorTexture", out var ctx)) 
             mat.AlbedoHandle =  ImageLoader.GetBindlessHandle(ImageLoader.LoadTexture(Path.Combine(Path.GetDirectoryName(gltfFilePath), root.GetProperty("images")[root.GetProperty("textures")[ctx.GetProperty("index").GetInt32()].GetProperty("source").GetInt32()].GetProperty("uri").GetString())));

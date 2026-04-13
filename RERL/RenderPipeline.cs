@@ -156,31 +156,26 @@ public static class RenderPipeline
 
     #region Renderable
     
-    public static void RegisterRenderable(Renderable renderable)
-    {
+    public static void RegisterRenderable(Renderable renderable) {
         Renderables.Add(renderable);
         RegisterToShaderBatch(renderable);
     }
     
-    public static void UnregisterRenderable(Renderable renderable)
-    {
+    public static void UnregisterRenderable(Renderable renderable) {
         Renderables.Remove(renderable);
 
         int handle = renderable.GetShader()!.GetHandle();
-        if (ShaderBatchRendering.TryGetValue(handle, out var list))
-        {
-            list.Remove(renderable);
-            if (list.Count == 0)
-                ShaderBatchRendering.Remove(handle);
-        }
+        if (!ShaderBatchRendering.TryGetValue(handle, out var list)) return;
+        list.Remove(renderable);
+        if (list.Count == 0)
+            ShaderBatchRendering.Remove(handle);
     }
 
     #endregion
     
     #region Shader
 
-    public static void RegisterShader(Shader shader)
-    {
+    public static void RegisterShader(Shader shader) {
         Shaders.Add(shader);
         shader.RegisterAutoUniform("uView", () => RERL_Core.Camera.GetView());
         shader.RegisterAutoUniform("uProjection", () => RERL_Core.Camera.GetProjection());
@@ -192,8 +187,7 @@ public static class RenderPipeline
 
     #region Material
 
-    public static int RegisterMaterial(Material material)
-    {
+    public static int RegisterMaterial(Material material) {
         ArgumentNullException.ThrowIfNull(material);
         if (Materials.Contains(material)) return Materials.IndexOf(material);
         Materials.Add(material);
@@ -217,8 +211,7 @@ public static class RenderPipeline
 
     #region Light
 
-    public static void RegisterLight(LightComponent light)
-    {
+    public static void RegisterLight(LightComponent light) {
         Lights.Add(light);
     }
 
@@ -243,8 +236,7 @@ public static class RenderPipeline
     
     #region Deferred Shader
 
-    public static void UpdateDeferredShader()
-    {
+    public static void UpdateDeferredShader() {
         if (_deferredShading == null) return;
         _deferredShading.Use();
         _deferredShading.ApplyUniform("screenDimensions", RERL_Core.Window.Size);
@@ -256,8 +248,7 @@ public static class RenderPipeline
 
     #endregion
     
-    public static class LightManager
-    {
+    public static class LightManager {
         public static bool Initialized { get; private set; } = false;
         static int LightsSsbo;
         static int GlobalLightsSsbo;
@@ -297,8 +288,7 @@ public static class RenderPipeline
         }
     }
     
-    public static class ClusterManager
-    {
+    public static class ClusterManager {
         public static bool Initialized { get; private set; } = false;
         internal static Vector3i GridSize = new(12, 12, 24);
         internal static int ClusterCount => GridSize.X * GridSize.Y * GridSize.Z;

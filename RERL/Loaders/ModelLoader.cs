@@ -161,33 +161,22 @@ public static class ModelLoader
 
         // Fill indices
         for (int i = 0; i < iCount; i++)
-        {
-            switch (componentType)
+            indices[i] = componentType switch
             {
-                case 5121: // UNSIGNED_BYTE
-                    indices[i] = ReadByte(idxView, i);
-                    break;
-
-                case 5123: // UNSIGNED_SHORT
-                    indices[i] = ReadUShort(idxView, i);
-                    break;
-
-                case 5125: // UNSIGNED_INT
-                    indices[i] = ReadUInt(idxView, i);
-                    break;
-
-                default:
-                    throw new Exception($"Unsupported index type {componentType}");
-            }
-        }
-
+                5121 => // UNSIGNED_BYTE
+                    ReadByte(idxView, i),
+                5123 => // UNSIGNED_SHORT
+                    ReadUShort(idxView, i),
+                5125 => // UNSIGNED_INT
+                    ReadUInt(idxView, i),
+                _ => throw new Exception($"Unsupported index type {componentType}")
+            };
 
         // Material
-        int matIndex = -1;
         if (!primitive.TryGetProperty("material", out var matElem)) return new Mesh(vertices, indices) { MaterialIndex = RenderPipeline.RegisterMaterial(DefaultMaterial) };
         int gltfMatIndex = matElem.GetInt32();
 
-        if (MaterialCache.TryGetValue(gltfMatIndex, out matIndex))
+        if (MaterialCache.TryGetValue(gltfMatIndex, out var matIndex))
         {
             //Logger.Log($"Reusing material {matIndex} for glTF material {gltfMatIndex}");
         } else {

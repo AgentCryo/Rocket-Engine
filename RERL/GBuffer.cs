@@ -64,8 +64,7 @@ public struct GBuffer
             Logger.Error($"GBuffer incomplete: {status}");
     }
     
-    void SetupTexture2D(int tex)
-    {
+    void SetupTexture2D(int tex) {
         GL.BindTexture(TextureTarget.Texture2D, tex);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
@@ -78,8 +77,7 @@ public struct GBuffer
     /// <summary>
     /// Clears all G‑Buffer attachments (color, normal, depth).
     /// </summary>
-    public void Clear()
-    {
+    public void Clear() {
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, FBO);
         float[] clearColor = new float[4];
         GL.GetFloat(GetPName.ColorClearValue, clearColor);
