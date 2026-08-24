@@ -82,176 +82,176 @@ public class Game : GameWindow
             MainScene.AddEntity(sun);
         }
         
-        //// Spotlight
-        //{
-        //    var spot = new Entity("Spotlight") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
+        // Spotlight
+        {
+            var spot = new Entity("Spotlight") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
 //
-        //    spot.AddComponent(
-        //        LightBuilder.Spot()
-        //            .Radius(2000)
-        //            .AngleDegrees(45)
-        //            .Intensity(12)
-        //            .Color(new Vector3(1))
-        //            .Build()
-        //            .SetPositionListener(() => spot.Transform.Position)
-        //            .Enable(LightConfig.SmoothEdgeClamping)
-        //    );
+            spot.AddComponent(
+                LightBuilder.Spot()
+                    .Radius(2000)
+                    .AngleDegrees(45)
+                    .Intensity(12)
+                    .Color(new Vector3(1))
+                    .Build()
+                    .SetPositionListener(() => spot.Transform.Position)
+                    .Enable(LightConfig.SmoothEdgeClamping)
+            );
 //
-        //    MainScene.AddEntity(spot);
-        //}
-        //// Light A
-        //{
-        //    var lightA = new Entity("Light A") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
+            MainScene.AddEntity(spot);
+        }
+        // Light A
+        {
+            var lightA = new Entity("Light A") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
 //
-        //    lightA.AddComponent(
-        //        LightBuilder.Point()
-        //            .Radius(6)
-        //            .Intensity(5)
-        //            .Color(new Vector3(1))
-        //            .Build()
-        //            .SetPositionListener(() => lightA.Transform.Position)
-        //            .Enable(LightConfig.SmoothEdgeClamping)
-        //    );
+            lightA.AddComponent(
+                LightBuilder.Point()
+                    .Radius(6)
+                    .Intensity(5)
+                    .Color(new Vector3(1))
+                    .Build()
+                    .SetPositionListener(() => lightA.Transform.Position)
+                    .Enable(LightConfig.SmoothEdgeClamping)
+            );
 //
-        //    MainScene.AddEntity(lightA);
-        //}
-        //// Light B
-        //{
-        //    var lightB = new Entity("Light B") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
+            MainScene.AddEntity(lightA);
+        }
+        // Light B
+        {
+            var lightB = new Entity("Light B") { Transform = { Position = new Vector3(0, 2.5f, 0) } };
 //
-        //    lightB.AddComponent(
-        //        LightBuilder.Point()
-        //            .Radius(6)
-        //            .Intensity(2)
-        //            .Color(new Vector3(1))
-        //            .Build()
-        //            .SetPositionListener(() => lightB.Transform.Position)
-        //            .Enable(LightConfig.SmoothEdgeClamping)
-        //    );
+            lightB.AddComponent(
+                LightBuilder.Point()
+                    .Radius(6)
+                    .Intensity(2)
+                    .Color(new Vector3(1))
+                    .Build()
+                    .SetPositionListener(() => lightB.Transform.Position)
+                    .Enable(LightConfig.SmoothEdgeClamping)
+            );
 //
-        //    MainScene.AddEntity(lightB);
-        //}
-        //{ // Light orbit things.
-        //    Random rng = new Random(314159);
+            MainScene.AddEntity(lightB);
+        }
+        { // Light orbit things.
+            Random rng = new Random(314159);
 //
-        //    int   count = 300;
-        //    float minR = 3f, maxR = 25f;
-        //    float minS = 0.2f, maxS = 1.2f;
+            int   count = 300;
+            float minR = 3f, maxR = 25f;
+            float minS = 0.2f, maxS = 1.2f;
 //
-        //    for (int i = 0; i < count; i++)
-        //    {
-        //        float radius      = float.Lerp(minR, maxR, (float)rng.NextDouble());
-        //        float inclination = float.Lerp(-float.Pi * 0.4f, float.Pi * 0.4f, (float)rng.NextDouble());
-        //        float speed       = float.Lerp(minS, maxS, (float)rng.NextDouble());
-        //        float phase       = (float)rng.NextDouble() * float.Tau;
+            for (int i = 0; i < count; i++)
+            {
+                float radius      = float.Lerp(minR, maxR, (float)rng.NextDouble());
+                float inclination = float.Lerp(-float.Pi * 0.4f, float.Pi * 0.4f, (float)rng.NextDouble());
+                float speed       = float.Lerp(minS, maxS, (float)rng.NextDouble());
+                float phase       = (float)rng.NextDouble() * float.Tau;
 //
-        //        Vector3 color = new Vector3(
-        //            0.4f + 0.6f * (float)rng.NextDouble(),
-        //            0.4f + 0.6f * (float)rng.NextDouble(),
-        //            0.4f + 0.6f * (float)rng.NextDouble()
-        //        );
+                Vector3 color = new Vector3(
+                    0.4f + 0.6f * (float)rng.NextDouble(),
+                    0.4f + 0.6f * (float)rng.NextDouble(),
+                    0.4f + 0.6f * (float)rng.NextDouble()
+                );
 //
-        //        var light = new Entity($"OrbitLight_{i}");
+                var light = new Entity($"OrbitLight_{i}");
 //
-        //        light.AddComponent(
-        //            LightBuilder.Point()
-        //                .Radius(4f)
-        //                .Intensity(1.5f)
-        //                .Color(color)
-        //                .Global(false)
-        //                .Enable(LightConfig.SmoothEdgeClamping)
-        //                .Build()
-        //                .SetPositionListener(() =>
-        //                {
-        //                    float t = _time * speed + phase;
+                light.AddComponent(
+                    LightBuilder.Point()
+                        .Radius(4f)
+                        .Intensity(1.5f)
+                        .Color(color)
+                        .Global(false)
+                        .Enable(LightConfig.SmoothEdgeClamping)
+                        .Build()
+                        .SetPositionListener(() =>
+                        {
+                            float t = _time * speed + phase;
 //
-        //                    float x = MathF.Cos(t) * radius;
-        //                    float z = MathF.Sin(t) * radius;
+                            float x = MathF.Cos(t) * radius;
+                            float z = MathF.Sin(t) * radius;
 //
-        //                    float y  = MathF.Sin(t * 0.5f) * 2f;
-        //                    float zi = z * MathF.Cos(inclination) - y * MathF.Sin(inclination);
-        //                    float yi = z * MathF.Sin(inclination) + y * MathF.Cos(inclination);
+                            float y  = MathF.Sin(t * 0.5f) * 2f;
+                            float zi = z * MathF.Cos(inclination) - y * MathF.Sin(inclination);
+                            float yi = z * MathF.Sin(inclination) + y * MathF.Cos(inclination);
 //
-        //                    return new Vector3(x, yi + 2.5f, zi);
-        //                })
-        //        );
+                            return new Vector3(x, yi + 2.5f, zi);
+                        })
+                );
 //
-        //        MainScene.AddEntity(light);
-        //    }
-        //}
-        //// === LightGrid ===
-        //{
-        //    int gridSize = 21;
+                MainScene.AddEntity(light);
+            }
+        }
+        // === LightGrid ===
+        {
+            int gridSize = 21;
 //
-        //    for (int gx = 0; gx < gridSize; gx++)
-        //    for (int gz = 0; gz < gridSize; gz++)
-        //    {
-        //        var light = new Entity($"GridLight_{gx}_{gz}");
+            for (int gx = 0; gx < gridSize; gx++)
+            for (int gz = 0; gz < gridSize; gz++)
+            {
+                var light = new Entity($"GridLight_{gx}_{gz}");
 //
-        //        light.RegisterData("ix", gx);
-        //        light.RegisterData("iz", gz);
+                light.RegisterData("ix", gx);
+                light.RegisterData("iz", gz);
 //
-        //        light.Transform.SetPositionListener(() =>
-        //        {
-        //            int ix = (int)light.GetData("ix");
-        //            int iz = (int)light.GetData("iz");
+                light.Transform.SetPositionListener(() =>
+                {
+                    int ix = (int)light.GetData("ix");
+                    int iz = (int)light.GetData("iz");
 //
-        //            float spacing = float.Sin(_time * 0.5f) * 10f;
+                    float spacing = float.Sin(_time * 0.5f) * 10f;
 //
-        //            float x = (ix - (gridSize - 1) / 2f) * spacing;
-        //            float z = (iz - (gridSize - 1) / 2f) * spacing;
+                    float x = (ix - (gridSize - 1) / 2f) * spacing;
+                    float z = (iz - (gridSize - 1) / 2f) * spacing;
 //
-        //            return new Vector3(x, 20f, z);
-        //        });
+                    return new Vector3(x, 20f, z);
+                });
 //
-        //        light.AddComponent(
-        //            LightBuilder.Point()
-        //                .Radius(3f)
-        //                .Intensity(1.5f)
-        //                .Color(new Vector3(1))
-        //                .Build()
-        //                .SetPositionListener(() => light.Transform.Position)
-        //                .Enable(LightConfig.SmoothEdgeClamping)
-        //        );
+                light.AddComponent(
+                    LightBuilder.Point()
+                        .Radius(3f)
+                        .Intensity(1.5f)
+                        .Color(new Vector3(1))
+                        .Build()
+                        .SetPositionListener(() => light.Transform.Position)
+                        .Enable(LightConfig.SmoothEdgeClamping)
+                );
 //
-        //        light.AddComponent(
-        //            new ModelRenderer()
-        //                .AttachModel(ModelLoader.IcosahedronMesh)
-        //                .AttachShader(RERL_Core.GetPrelightShader())
-        //        );
+                light.AddComponent(
+                    new ModelRenderer()
+                        .AttachModel(ModelLoader.IcosahedronMesh)
+                        .AttachShader(RERL_Core.GetPrelightShader())
+                );
 //
-        //        light.Transform.Scale = new Vector3(0.15f);
+                light.Transform.Scale = new Vector3(0.15f);
 //
-        //        MainScene.AddEntity(light);
-        //    }
-        //}
-        //// Pong Ico Object
-        //{
-        //    MainScene.AddEntity(new Entity("PongIco")
-        //        .AddComponent(new ModelRenderer()
-        //            .AttachModel(ModelLoader.IcosahedronMesh)
-        //            .AttachShader(RERL_Core.GetPrelightShader()))
-        //        .AddComponent(new PongComponent(20, 10))
-        //    );
-        //}
-        //// Menger Sponge Object
-        //{
-        //    var menger = new Entity("MengerSpongeObject")
-        //        .AddComponent(new ModelRenderer()
-        //            .AttachModel(ModelLoader.CubeMesh)
-        //            .AttachShader(_mengerSpongeObjectShader));
-        //
-        //    menger.Transform.Position = new Vector3(5, 2.5f, 0);
-        //    menger.Transform.Scale = new Vector3(2.5f, 2.5f, 2.5f);
-        //    MainScene.AddEntity(menger);
-        //
-        //    _mengerSpongeObjectShader.RegisterAutoUniform("objectPos", () => menger.Transform.Position);
-        //    _mengerSpongeObjectShader.RegisterAutoUniform(
-        //        "objectRot",
-        //        () => menger.Transform.Rotation
-        //    );
-        //    _mengerSpongeObjectShader.RegisterAutoUniform("objectScale", () => menger.Transform.Scale);
-        //}
+                MainScene.AddEntity(light);
+            }
+        }
+        // Pong Ico Object
+        {
+            MainScene.AddEntity(new Entity("PongIco")
+                .AddComponent(new ModelRenderer()
+                    .AttachModel(ModelLoader.IcosahedronMesh)
+                    .AttachShader(RERL_Core.GetPrelightShader()))
+                .AddComponent(new PongComponent(20, 10))
+            );
+        }
+        // Menger Sponge Object
+        {
+            var menger = new Entity("MengerSpongeObject")
+                .AddComponent(new ModelRenderer()
+                    .AttachModel(ModelLoader.CubeMesh)
+                    .AttachShader(_mengerSpongeObjectShader));
+        
+            menger.Transform.Position = new Vector3(5, 2.5f, 0);
+            menger.Transform.Scale = new Vector3(2.5f, 2.5f, 2.5f);
+            MainScene.AddEntity(menger);
+        
+            _mengerSpongeObjectShader.RegisterAutoUniform("objectPos", () => menger.Transform.Position);
+            _mengerSpongeObjectShader.RegisterAutoUniform(
+                "objectRot",
+                () => menger.Transform.Rotation
+            );
+            _mengerSpongeObjectShader.RegisterAutoUniform("objectScale", () => menger.Transform.Scale);
+        }
         {
             var sw = Stopwatch.StartNew();
 
@@ -263,7 +263,7 @@ public class Game : GameWindow
 
                 if (m.Model != null) {
                     ent.AddComponent(new ModelRenderer()
-                        .AttachModel(m.Model)
+                        .AttachModel(m.Model) 
                         .AttachShader(RERL_Core.GetPrelightShader()));
                 }
 

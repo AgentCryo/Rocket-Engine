@@ -53,8 +53,7 @@ public class Transform(Vector3 position, Quaternion rotation, Vector3 scale) : I
     /// <summary>
     /// Returns a transform with zero position and rotation, and a scale of one.
     /// </summary>
-    public static Transform Identity =>
-        new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One);
+    public static Transform Identity => new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One);
     
     public Transform SetPosition(Vector3 position)
     {
