@@ -1,3 +1,7 @@
+#include "./RocketEngine/Shaders/Helpers/common.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbuffer.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbufferSampler.glsl"
+
 struct Cluster {
     vec3 minPoint;   
     uint _pad0;     

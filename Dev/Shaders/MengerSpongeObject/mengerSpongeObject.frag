@@ -1,3 +1,6 @@
+#include "./RocketEngine/Shaders/Helpers/common.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbuffer.glsl"
+
 uniform vec3 cameraPos;
 uniform vec4 cameraRot;   // quaternion
 

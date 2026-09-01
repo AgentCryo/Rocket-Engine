@@ -63,15 +63,10 @@ public static class ModelLoader
         public int Stride;
     }
     
-    static Dictionary<int, AccessorView<byte>> BuildAccessorViews(
-        JsonElement accessors,
-        JsonElement bufferViews,
-        Dictionary<uint, byte[]> buffers)
-    {
+    static Dictionary<int, AccessorView<byte>> BuildAccessorViews(JsonElement accessors, JsonElement bufferViews, Dictionary<uint, byte[]> buffers) {
         var dict = new Dictionary<int, AccessorView<byte>>();
 
-        for (int i = 0; i < accessors.GetArrayLength(); i++)
-        {
+        for (int i = 0; i < accessors.GetArrayLength(); i++) {
             var acc = accessors[i];
             int viewIndex = acc.GetProperty("bufferView").GetInt32();
             var view = bufferViews[viewIndex];
@@ -99,25 +94,13 @@ public static class ModelLoader
     
     static readonly Dictionary<int, int> MaterialCache = new();
 
-    static Mesh BuildMesh(
-        JsonElement primitive,
-        Dictionary<int, AccessorView<byte>> accessors,
-        JsonElement root,
-        string filePath)
-    {
+    static Mesh BuildMesh(JsonElement primitive, Dictionary<int, AccessorView<byte>> accessors, JsonElement root, string filePath) {
         var attrs = primitive.GetProperty("attributes");
 
         int posIndex = attrs.GetProperty("POSITION").GetInt32();
         int idxIndex = primitive.GetProperty("indices").GetInt32();
-
-        
-        int nrmIndex = attrs.TryGetProperty("NORMAL", out var nrmProp)
-            ? nrmProp.GetInt32()
-            : -1;
-
-        int uvIndex = attrs.TryGetProperty("TEXCOORD_0", out var uvProp)
-            ? uvProp.GetInt32()
-            : -1;
+        int nrmIndex = attrs.TryGetProperty("NORMAL", out var nrmProp) ? nrmProp.GetInt32() : -1;
+        int uvIndex = attrs.TryGetProperty("TEXCOORD_0", out var uvProp) ? uvProp.GetInt32() : -1;
 
         var posView = accessors[posIndex];
         var idxView = accessors[idxIndex];

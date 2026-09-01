@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using RCS;
 using RCS.Components;
-using RERL.ShaderTypes;
+using RERL.Shader_Engine;
 using static RERL.RenderData;
 
 namespace RERL.Components;
@@ -25,7 +25,7 @@ public class MeshRenderer : IComponent, Renderable
     }
 
     Mesh? _mesh;
-    Shader? _shader;
+    GraphicsShader? _shader;
     int _vao = -1, _vbo = -1, _ibo = -1;
     bool _buffersDirty = false;
 
@@ -36,7 +36,7 @@ public class MeshRenderer : IComponent, Renderable
         return this;
     }
 
-    public MeshRenderer AttachShader(Shader shader, bool buildMeshBuffers = true)
+    public MeshRenderer AttachShader(GraphicsShader shader, bool buildMeshBuffers = true)
     {
         _shader = shader;
         _buffersDirty = true;
@@ -45,7 +45,7 @@ public class MeshRenderer : IComponent, Renderable
     }
 
     public Mesh? GetMesh() => _mesh!;
-    public Shader? GetShader() => _shader;
+    public GraphicsShader? GetShader() => _shader;
 
     public void OnAdd()
     {
@@ -112,7 +112,7 @@ public class MeshRenderer : IComponent, Renderable
         if (_shader == null) throw new Exception("ERR: Shader is null.");
         if (_buffersDirty) Console.WriteLine("WRN: Rendering an object with outdated mesh buffers.");
         
-        _shader.ApplyUniform("uModel", Owner.Transform.WorldMatrix, false);
+        _shader.Set("uModel", Owner.Transform.WorldMatrix, false);
 
         GL.BindVertexArray(_vao);
         GL.DrawElementsInstanced(

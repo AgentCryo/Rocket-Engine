@@ -1,0 +1,89 @@
+#include "./RocketEngine/Shaders/Helpers/common.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbuffer.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbufferSampler.glsl"
+
+uniform mat4 uProjection;
+uniform mat4 uView;
+
+float random(vec2 st) {
+    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+}
+
+vec3 hemisphereSample(vec3 n, float seed) {
+    float u = random(vec2(seed, seed * 1.37));
+    float v = random(vec2(seed * 2.13, seed * 3.17));
+
+    float phi = 6.2831853 * u;
+    float cosTheta = 1.0 - v;
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 s = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    vec3 up = abs(n.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+    vec3 tangent   = normalize(cross(up, n));
+    vec3 bitangent = cross(n, tangent);
+
+    return tangent * s.x + bitangent * s.y + n * s.z;
+}
+
+void main() {
+    vec3 position = GetPosition();
+    vec3 normal   = normalize(DecodeNormal(GetNormal()));
+    vec3 color    = GetColor();
+    float depth   = GetDepth();
+
+    float radius      = 0.35;
+    int   sampleCount = 12;
+    float occlusion   = 0.0;
+
+    vec2 uv = UV;
+
+    // SSAO sampling
+    for (int i = 0; i < sampleCount; i++) {
+        float seed = float(i) + random(uv);
+
+        vec3 samplePos = position + hemisphereSample(normal, seed) * radius;
+
+        vec4 clip = uProjection * uView * vec4(samplePos, 1.0);
+        clip.xyz /= clip.w;
+        vec2 sampleUV = clip.xy * 0.5 + 0.5;
+
+        sampleUV = clamp(sampleUV, vec2(0.0), vec2(1.0));
+
+        float neighborDepth = texture(uDepth, sampleUV).r;
+
+        float dCenter   = LinearizeDepth(depth, 0.1, 100.0);
+        float dNeighbor = LinearizeDepth(neighborDepth, 0.1, 100.0);
+
+        float depthDiff = dCenter - dNeighbor;
+
+        float falloff = clamp(depthDiff / radius, 0.0, 1.0);
+
+        vec3 dir = normalize(samplePos - position);
+        float angleWeight = max(dot(normal, dir), 0.0);
+
+        occlusion += falloff * angleWeight;
+    }
+
+    float ao = 1.0 - (occlusion / float(sampleCount));
+    ao = clamp(ao, 0.4, 1.0);
+
+    // Small blur kernel (single-pass)
+    vec2 texel = 1.0 / vec2(textureSize(uColor, 0));
+    float blur = 0.0;
+
+    blur += ao * 0.4;
+    blur += texture(uColor, uv + vec2(texel.x, 0)).r * 0.15;
+    blur += texture(uColor, uv - vec2(texel.x, 0)).r * 0.15;
+    blur += texture(uColor, uv + vec2(0, texel.y)).r * 0.15;
+    blur += texture(uColor, uv - vec2(0, texel.y)).r * 0.15;
+
+    ao = blur;
+
+    float strength = 0.6;
+    vec3 finalColor = color * mix(1.0, ao, strength);
+
+    gAlbedo   = vec4(finalColor, 1.0);
+    gNormal   = GetNormal();
+    gPosition = vec4(position, 1.0);
+}

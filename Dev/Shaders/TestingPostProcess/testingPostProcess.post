@@ -1,3 +1,7 @@
+#include "./RocketEngine/Shaders/Helpers/common.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbuffer.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbufferSampler.glsl"
+
 float random (vec2 st) {
     return fract(sin(dot(st.xy,
                          vec2(12.9898,78.233)))*
@@ -14,7 +18,7 @@ void main() {
     float d = LinearizeDepth(GetDepth(), 0.1, 100.0);
     d = clamp(d / 100.0, 0.0, 1.0);
     //gAlbedo = vec4(vec3(d*5), 1.0);
-    gAlbedo =  vec4((DecodeNormal(norm) + 1) * 0.5, 1.0);
+    //gAlbedo =  vec4((DecodeNormal(norm) + 1) * 0.5, 1.0);
     gAlbedo = vec4(color, 1.0);
     gPosition = vec4(position, 1.0);
 }

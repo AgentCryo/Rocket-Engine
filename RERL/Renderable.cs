@@ -1,10 +1,10 @@
-using RERL.ShaderTypes;
+using RERL.Shader_Engine;
 
 namespace RERL;
 
 public interface Renderable
 {
-    public void RebuildMaterialSSBO();
-    public void Render(int instanceCount = 1);
-    public Shader? GetShader();
+    void RebuildMaterialSSBO();
+    void Render(int instanceCount = 1);
+    GraphicsShader? GetShader();
 }

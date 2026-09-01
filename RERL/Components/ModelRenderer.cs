@@ -3,7 +3,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using RCS;
 using RCS.Components;
-using RERL.ShaderTypes;
+using RERL.Shader_Engine;
 using static RERL.Loaders.MaterialLoader;
 using static RERL.Loaders.ModelLoader;
 using static RERL.RenderData;
@@ -16,8 +16,8 @@ public class ModelRenderer : IComponent, Renderable
     public Entity Owner { get; set; }
 
     Model? _model;
-    Shader? _shader;
-    public Shader? GetShader() => _shader;
+    GraphicsShader? _shader;
+    public GraphicsShader? GetShader() => _shader;
     
     int _vao, _ibo, _vbo, _materialVbo;
     int _singleIndirect, _doubleIndirect;
@@ -40,7 +40,7 @@ public class ModelRenderer : IComponent, Renderable
         return this;
     }
 
-    public ModelRenderer AttachShader(Shader shader, bool buildModelBuffers = true)
+    public ModelRenderer AttachShader(GraphicsShader shader, bool buildModelBuffers = true)
     {
         _shader = shader;
         if (buildModelBuffers) BuildModelBuffers();
@@ -226,7 +226,7 @@ public class ModelRenderer : IComponent, Renderable
 
         //GL.GetInteger(GetPName.CurrentProgram, out var activeShader);
         //if(activeShader != _shader.Handle) _shader.Use();
-        _shader.ApplyUniform("uModel", Owner.Transform.WorldMatrix, false);
+        _shader.Set("uModel", Owner.Transform.WorldMatrix, false);
 
         GL.BindVertexArray(_vao);
 

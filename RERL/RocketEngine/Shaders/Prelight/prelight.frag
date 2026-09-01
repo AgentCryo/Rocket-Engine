@@ -1,4 +1,5 @@
-#extension GL_EXT_nonuniform_qualifier : enable
+#include "./RocketEngine/Shaders/Helpers/common.glsl"
+#include "./RocketEngine/Shaders/Helpers/gbuffer.glsl"
 
 in vec3 vColor;
 in vec3 vNormal;

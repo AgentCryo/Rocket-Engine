@@ -2,6 +2,9 @@
 // Rocket Engine - Common.glsl
 // ======================================================
 
+#extension GL_ARB_bindless_texture : require
+#extension GL_EXT_nonuniform_qualifier : enable
+
 // Encode a world-space normal into 0-1 range
 vec4 EncodeNormal(vec3 n)
 {
