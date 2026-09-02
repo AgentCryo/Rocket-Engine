@@ -4,7 +4,7 @@ API Documentation: [RocketEngineDocs](https://agentcryo.github.io/RocketEngineDo
 
 ## Dev
 A sandbox environment used for testing new features.  
-This is the user-side/game layer built on top of Rocket Engine.
+This is the user-side/game layer built on top of Rocket Engine for testing the engine in development.
 
 ---
 
