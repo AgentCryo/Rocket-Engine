@@ -1,18 +1,18 @@
 using RCS;
+using RCS.Component_Engine;
 using RCS.Components;
 
 namespace Dev;
 
-public class CubeComponent : IComponent
+public class CubeComponent : IOwnerComponent, IUpdatable
 {
     public Entity Owner { get; set; }
 
-    float _time = 0;
-    
-    public void Load() {}
+    float _time;
+
     public void Update(float deltaTime)
     {
-        Owner.Transform.Position.X = float.Sin(_time += deltaTime) * 3;
+        var transform = RCS_Core.GetActiveWorld().Get<Transform>(Owner);
+        transform.Position.X = float.Sin(_time += deltaTime) * 3;
     }
-    public void OnAdd() {}
 }

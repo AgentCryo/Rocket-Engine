@@ -37,15 +37,21 @@ public static class RenderData
         public Vector4 BaseColor;    // 16
         public uint AlbedoHandleLo;  // 4
         public uint AlbedoHandleHi;  // 4
-        public Vector2 Padding;      // 8 -> total 32
+        public uint NormalHandleLo;  // 4
+        public uint NormalHandleHi;  // 4
+        // total: 32 bytes - matches the GLSL Material struct's std430 stride exactly
     }
 
     public static GPUMaterial ToGpu(Material mat) {
-        ulong h = mat.AlbedoHandle;
+        ulong albedo = mat.AlbedoHandle;
+        ulong normal = mat.NormalHandle;
+
         return new GPUMaterial {
-            BaseColor    = new Vector4(mat.BaseAlbedo, 1.0f),
-            AlbedoHandleLo  = (uint)(h & 0xFFFFFFFF),
-            AlbedoHandleHi  = (uint)(h >> 32),
+            BaseColor      = new Vector4(mat.BaseAlbedo, 1.0f),
+            AlbedoHandleLo = (uint)(albedo & 0xFFFFFFFF),
+            AlbedoHandleHi = (uint)(albedo >> 32),
+            NormalHandleLo = (uint)(normal & 0xFFFFFFFF),
+            NormalHandleHi = (uint)(normal >> 32),
         };
     }
     

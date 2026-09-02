@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using RCS;
+using RCS.Components;
 using RERL.Components;
 using RERL.Shader_Engine;
 using static RERL.Loaders.MaterialLoader;
@@ -13,42 +14,52 @@ public static class RenderPipeline
 {
     internal static GBuffer GFrame;
     static int _postProcessQuadVao;
+
     internal static readonly List<PostProcessShader> PostProcesses = [];
     internal static readonly List<PostProcessShader> EnginePostProcesses = [];
     internal static readonly Dictionary<GraphicsShader, List<Renderable>> ShaderBatches = new();
     internal static readonly List<Renderable> Renderables = [];
-    internal static readonly List<LightComponent> Lights = [];
-    internal static readonly List<LightComponent> GlobalLights = [];
     internal static readonly List<Material> Materials = [];
+    
+    static readonly int[] _frameQueries = new int[2];
+    static int _queryIndex = 0;
+    static bool[] _queryHasResult = new bool[2];
+
     static GraphicsShader _deferredShading = null!;
 
-    // Color buffers post-process pass ping-pong between, so a
-    // pass never reads from the same buffer it's writing to. Distinct from
-    // GFrame - GFrame.Position/Normal/Depth stay untouched read-only inputs
-    // for the entire chain.
+    // Color buffers post-process pass ping-pong between, so a pass never reads
+    // from the same buffer it's writing to. Distinct from GFrame - GFrame
+    // Position/Normal/Depth stay untouched read-only inputs for the entire chain.
     static readonly PostProcessTarget[] _pingPong = new PostProcessTarget[2];
 
     internal static void InitializeRenderPipeline()
     {
         GFrame = new GBuffer(RERL_Core.Window.Size);
         _postProcessQuadVao = GL.GenVertexArray();
+
         _pingPong[0] = new PostProcessTarget(RERL_Core.Window.Size);
         _pingPong[1] = new PostProcessTarget(RERL_Core.Window.Size);
+
         LightManager.Initialize();
         ClusterManager.Initialize();
+
         _deferredShading = ShaderEngine.RegisterGraphics("DeferredShading", "./RocketEngine/Shaders/Templates/DefaultPostProcess/defaultPostProcess.vert", "./RocketEngine/Shaders/LightShaders/deferredShading.post");
+
         EnginePostProcesses.Add(new PostProcessShader(_deferredShading));
         UpdateDeferredShader();
+        
+        _frameQueries[0] = GL.GenQuery();
+        _frameQueries[1] = GL.GenQuery();
     }
 
     internal static void RenderPipelineFrame(FrameEventArgs args)
     {
-        GL.GenQueries(1, out int query);
-        GL.BeginQuery(QueryTarget.TimeElapsed, query);
+        int writeIndex = _queryIndex;
+        int readIndex = 1 - _queryIndex;
 
-        if (Lights.Count > 0) LightManager.UploadClusterLights();
-        if (GlobalLights.Count > 0) LightManager.UploadGlobalLights();
+        GL.BeginQuery(QueryTarget.TimeElapsed, _frameQueries[writeIndex]);
 
+        LightManager.Update();
         GFrame.Clear();
 
         bool hasPostProcessing = PostProcesses.Count > 0 || EnginePostProcesses.Count > 0;
@@ -59,70 +70,97 @@ public static class RenderPipeline
         RenderPostProcessing();
 
         GL.EndQuery(QueryTarget.TimeElapsed);
-        GL.GetQueryObject(query, GetQueryObjectParam.QueryResult, out long gpuTime);
-        Logger.Log($"GPU time: {gpuTime / 1_000_000.0} ms");
-        GL.DeleteQuery(query);
+
+        // Read the OTHER query's result - it was issued last frame, so by now the
+        // GPU has almost certainly already finished it, and this call returns
+        // immediately instead of stalling.
+        if (_queryHasResult[readIndex])
+        {
+            GL.GetQueryObject(_frameQueries[readIndex], GetQueryObjectParam.QueryResultAvailable, out int available);
+            if (available != 0)
+            {
+                GL.GetQueryObject(_frameQueries[readIndex], GetQueryObjectParam.QueryResult, out long gpuTime);
+                Logger.Log($"GPU time: {gpuTime / 1_000_000.0} ms");
+            }
+        }
+
+        _queryHasResult[writeIndex] = true;
+        _queryIndex = readIndex;
+
         RERL_Core.Window.SwapBuffers();
     }
 
-    static void RenderGeometry()
-    {
-        foreach (var batch in ShaderBatches)
-        {
+    static void RenderGeometry() {
+        var world = RCS_Core.GetActiveWorld();
+
+        // Rebuilt every frame from the ECS query - there's no register/unregister
+        // hook anymore, so batching by shader has to happen here instead of
+        // incrementally. Lists are cleared and reused rather than reallocated,
+        // and the dictionary only grows the first time a new shader shows up.
+        foreach (var batch in ShaderBatches.Values)
+            batch.Clear();
+
+        foreach (var entity in world.Query<ModelRenderer>()) {
+            var renderer = world.Get<ModelRenderer>(entity);
+            var shader = renderer.GetShader();
+
+            if (shader is null) continue;
+
+            if (!ShaderBatches.TryGetValue(shader, out var batch)) {
+                batch = [];
+                ShaderBatches[shader] = batch;
+            }
+
+            batch.Add(renderer);
+        }
+
+        foreach (var batch in ShaderBatches) {
+            if (batch.Value.Count == 0) continue;
+
             GraphicsShader shader = batch.Key;
             shader.Use();
             shader.ApplyAutoUniforms();
             ApplyFrameUniforms(shader);
 
-            foreach (var renderable in batch.Value)
-                renderable.Render();
+            foreach (var renderer in batch.Value)
+                renderer.Render();
         }
     }
 
-    static void ApplyFrameUniforms(GraphicsShader shader)
-    {
+    static void ApplyFrameUniforms(GraphicsShader shader) {
         shader.Set("uView", RERL_Core.Camera.GetView());
         shader.Set("uProjection", RERL_Core.Camera.GetProjection());
     }
 
-    static void RenderClusters()
-    {
-        if (Lights.Count == 0) return;
+    static void RenderClusters() {
+        if (LightManager.LightCount == 0) return;
 
         ClusterManager.Builder.Dispatch(ClusterManager.GridSize.X, ClusterManager.GridSize.Y, ClusterManager.GridSize.Z);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
-
+        
         ClusterManager.Lighter.Dispatch(ClusterManager.ClusterCount, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
     }
 
-    static void RenderPostProcessing()
-    {
+    static void RenderPostProcessing() {
         int totalPasses = EnginePostProcesses.Count + PostProcesses.Count;
+
         if (totalPasses == 0) return;
 
         GL.DepthMask(false);
         GL.Disable(EnableCap.DepthTest);
 
-        // First pass reads GFrame's raw geometry-pass color output. Every
-        // pass after that reads the previous pass's ping-pong output instead.
         int inputColor = GFrame.Color;
         int pingIndex = 0;
         int passIndex = 0;
 
-        void RunPass(PostProcessShader pass)
-        {
+        void RunPass(PostProcessShader pass) {
             bool isLast = passIndex == totalPasses - 1;
-
-            // Last pass writes straight to the screen; every other pass writes
-            // into whichever ping-pong buffer isn't currently the input, so
-            // read and write targets are always different buffers.
             int targetFbo = isLast ? 0 : _pingPong[pingIndex].FBO;
 
             pass.Render(GFrame, inputColor, _postProcessQuadVao, targetFbo);
 
-            if (!isLast)
-            {
+            if (!isLast) {
                 inputColor = _pingPong[pingIndex].ColorTexture;
                 pingIndex = 1 - pingIndex;
             }
@@ -137,21 +175,21 @@ public static class RenderPipeline
         GL.DepthMask(true);
     }
 
-    internal static void ResizeRenderPipeline()
-    {
+    internal static void ResizeRenderPipeline() {
         var size = RERL_Core.Window.Size;
+
         if (size.X <= 0 || size.Y <= 0 || !ClusterManager.Initialized) return;
 
         ClusterManager.UpdateShaderUniforms();
         ClusterManager.AllocateClusterBuffer();
         UpdateDeferredShader();
+
         GFrame = new GBuffer(size);
         _pingPong[0].Resize(size);
         _pingPong[1].Resize(size);
     }
 
-    internal static void CameraChange()
-    {
+    internal static void CameraChange() {
         if (!ClusterManager.Initialized) return;
 
         ClusterManager.UpdateShaderUniforms();
@@ -161,12 +199,10 @@ public static class RenderPipeline
 
     #region Registering
 
-    static void RegisterToShaderBatch(Renderable renderable)
-    {
+    static void RegisterToShaderBatch(Renderable renderable) {
         GraphicsShader shader = renderable.GetShader() ?? throw new Exception($"ERR: {renderable.GetType().Name} does not have a shader.");
 
-        if (!ShaderBatches.TryGetValue(shader, out var batch))
-        {
+        if (!ShaderBatches.TryGetValue(shader, out var batch)) {
             batch = [];
             ShaderBatches.Add(shader, batch);
         }
@@ -174,27 +210,28 @@ public static class RenderPipeline
         batch.Add(renderable);
     }
 
-    public static void RegisterRenderable(Renderable renderable)
-    {
-        if (Renderables.Contains(renderable)) return;
-
-        Renderables.Add(renderable);
-        RegisterToShaderBatch(renderable);
-    }
-
-    public static void UnregisterRenderable(Renderable renderable)
-    {
-        if (!Renderables.Remove(renderable)) return;
-
-        GraphicsShader? shader = renderable.GetShader();
-        if (shader == null || !ShaderBatches.TryGetValue(shader, out var batch)) return;
-
-        batch.Remove(renderable);
-        if (batch.Count == 0) ShaderBatches.Remove(shader);
-    }
+    //public static void RegisterRenderable(Renderable renderable) {
+    //    if (Renderables.Contains(renderable)) return;
+//
+    //    Renderables.Add(renderable);
+    //    RegisterToShaderBatch(renderable);
+    //}
+//
+    //public static void UnregisterRenderable(Renderable renderable) {
+    //    if (!Renderables.Remove(renderable)) return;
+//
+    //    GraphicsShader? shader = renderable.GetShader();
+//
+    //    if (shader == null || !ShaderBatches.TryGetValue(shader, out var batch)) return;
+//
+    //    batch.Remove(renderable);
+//
+    //    if (batch.Count == 0) ShaderBatches.Remove(shader);
+    //}
 
     public static int RegisterMaterial(Material material) {
         ArgumentNullException.ThrowIfNull(material);
+
         if (Materials.Contains(material)) return Materials.IndexOf(material);
 
         Materials.Add(material);
@@ -202,7 +239,9 @@ public static class RenderPipeline
     }
 
     public static void UnregisterMaterial(Material material) => Materials.Remove(material);
+
     public static int GetMaterialIndex(Material material) => Materials.IndexOf(material);
+
     public static Material GetIndexedMaterial(int index) => Materials[index];
 
     public static void RegisterPostProcess(PostProcessShader postProcess) {
@@ -210,18 +249,6 @@ public static class RenderPipeline
     }
 
     public static void UnregisterPostProcess(PostProcessShader postProcess) => PostProcesses.Remove(postProcess);
-
-    public static void RegisterLight(LightComponent light) {
-        if (!Lights.Contains(light)) Lights.Add(light);
-    }
-
-    public static void UnregisterLight(LightComponent light) => Lights.Remove(light);
-
-    public static void RegisterGlobalLight(LightComponent light) {
-        if (!GlobalLights.Contains(light)) GlobalLights.Add(light);
-    }
-
-    public static void UnregisterGlobalLight(LightComponent light) => GlobalLights.Remove(light);
 
     #endregion
 
@@ -236,56 +263,116 @@ public static class RenderPipeline
         _deferredShading.RegisterAutoUniform("viewMatrix", () => RERL_Core.Camera.GetView());
     }
 
-    public static class LightManager
-    {
+    public static class LightManager {
         public static bool Initialized { get; private set; }
+
+        internal static int LightCount { get; private set; }
+        internal static int GlobalLightCount { get; private set; }
+
         static int _lightsSsbo;
         static int _globalLightsSsbo;
 
-        internal static void Initialize()
-        {
+        static RenderData.Light[] _lightUploadBuffer = [];
+        static RenderData.Light[] _globalLightUploadBuffer = [];
+
+        internal static void Initialize() {
             _lightsSsbo = GL.GenBuffer();
             _globalLightsSsbo = GL.GenBuffer();
             Initialized = true;
         }
 
-        internal static void UploadClusterLights() => UploadLightArray(Lights, _lightsSsbo, 2);
-        internal static void UploadGlobalLights() => UploadLightArray(GlobalLights, _globalLightsSsbo, 3);
-
-        static unsafe void UploadLightArray(List<LightComponent> list, int ssbo, int binding)
+        internal static void Update()
         {
-            if (list.Count == 0) return;
+            var world = RCS_Core.GetActiveWorld();
 
-            RenderData.Light[] lights = list.Select(x => x.LightData).ToArray();
-            int size = sizeof(RenderData.Light) * lights.Length;
+            var lightStore = world.Store<LightComponent>();
+            var transformStore = world.Store<Transform>();
+
+            var entities = lightStore.Entities;
+
+            LightCount = 0;
+            GlobalLightCount = 0;
+
+            for (var i = 0; i < entities.Length; i++)
+            {
+                var entity = entities[i];
+
+                ref var light = ref lightStore.GetUnchecked(entity);
+                ref var transform = ref transformStore.GetUnchecked(entity);
+
+                light.LightData.Position = transform.Position;
+                light.LightData.Direction = transform.Forward;
+
+                if (light.IsGlobal)
+                {
+                    EnsureGlobalLightCapacity(GlobalLightCount + 1);
+                    _globalLightUploadBuffer[GlobalLightCount++] = light.LightData;
+                }
+                else
+                {
+                    EnsureLightCapacity(LightCount + 1);
+                    _lightUploadBuffer[LightCount++] = light.LightData;
+                }
+            }
+
+            if (LightCount > 0)
+                UploadLightArray(_lightUploadBuffer, LightCount, _lightsSsbo, 2);
+
+            if (GlobalLightCount > 0)
+                UploadLightArray(_globalLightUploadBuffer, GlobalLightCount, _globalLightsSsbo, 3);
+        }
+
+        static unsafe void UploadLightArray(RenderData.Light[] lights, int count, int ssbo, int binding) {
+            var size = sizeof(RenderData.Light) * count;
 
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssbo);
             GL.BufferData(BufferTarget.ShaderStorageBuffer, size, IntPtr.Zero, BufferUsageHint.DynamicDraw);
 
-            fixed (RenderData.Light* source = lights)
-            {
-                IntPtr destination = GL.MapBufferRange(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, size, MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
+            fixed (RenderData.Light* source = lights) {
+                var destination = GL.MapBufferRange(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, size, MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
+
                 if (destination == IntPtr.Zero) throw new Exception("Failed to map light SSBO.");
 
                 Buffer.MemoryCopy(source, destination.ToPointer(), size, size);
+
                 GL.UnmapBuffer(BufferTarget.ShaderStorageBuffer);
             }
 
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding, ssbo);
         }
+
+        static void EnsureLightCapacity(int required) {
+            if (_lightUploadBuffer.Length >= required) return;
+
+            var capacity = _lightUploadBuffer.Length == 0 ? 16 : _lightUploadBuffer.Length * 2;
+
+            while (capacity < required) capacity *= 2;
+
+            Array.Resize(ref _lightUploadBuffer, capacity);
+        }
+
+        static void EnsureGlobalLightCapacity(int required) {
+            if (_globalLightUploadBuffer.Length >= required) return;
+
+            var capacity = _globalLightUploadBuffer.Length == 0 ? 16 : _globalLightUploadBuffer.Length * 2;
+
+            while (capacity < required) capacity *= 2;
+
+            Array.Resize(ref _globalLightUploadBuffer, capacity);
+        }
     }
 
-    public static class ClusterManager
-    {
+    public static class ClusterManager {
         public static bool Initialized { get; private set; }
         internal static Vector3i GridSize { get; private set; } = new(12, 12, 24);
         internal static int ClusterCount => GridSize.X * GridSize.Y * GridSize.Z;
+
         static int _clustersSsbo;
+
         internal static ComputeShader Builder { get; private set; } = null!;
         internal static ComputeShader Lighter { get; private set; } = null!;
 
-        internal static void Initialize()
-        {
+        internal static void Initialize() {
             _clustersSsbo = GL.GenBuffer();
 
             Builder = ShaderEngine.RegisterCompute("ClusterBuilder", "./RocketEngine/Shaders/ClusterBuilding/clusterBuilder.comp");
@@ -293,20 +380,18 @@ public static class RenderPipeline
 
             AllocateClusterBuffer();
             UpdateShaderUniforms();
+
             Initialized = true;
         }
 
-        public static void SetGridSize(Vector3i size)
-        {
+        public static void SetGridSize(Vector3i size) {
             GridSize = size;
             AllocateClusterBuffer();
             UpdateShaderUniforms();
         }
 
-        internal static void UpdateShaderUniforms()
-        {
+        internal static void UpdateShaderUniforms() {
             if (RERL_Core.Window == null || RERL_Core.Camera == null) return;
-
             Vector2i size = RERL_Core.Window.Size;
             if (size.X <= 0 || size.Y <= 0) return;
 
@@ -316,7 +401,7 @@ public static class RenderPipeline
             Builder.Set("screenDimensions", size);
             Builder.RegisterAutoUniform("inverseProjection", () => Matrix4.Invert(RERL_Core.Camera.GetProjection()));
             Builder.RegisterAutoUniform("gridSize", () => GridSize);
-
+            
             Lighter.Use();
             Lighter.Set("zNear", RERL_Core.Camera.Near);
             Lighter.Set("zFar", RERL_Core.Camera.Far);
@@ -324,12 +409,12 @@ public static class RenderPipeline
             Lighter.RegisterAutoUniform("gridSize", () => GridSize);
 
             Matrix4 projection = RERL_Core.Camera.GetProjection();
+
             Lighter.Set("tanHalfFovX", 1f / projection[0, 0]);
             Lighter.Set("tanHalfFovY", 1f / projection[1, 1]);
         }
 
-        internal static void AllocateClusterBuffer()
-        {
+        internal static void AllocateClusterBuffer() {
             const int bytesPerCluster = sizeof(float) * 3 + sizeof(uint) + sizeof(float) * 3 + sizeof(uint) + sizeof(uint) * 128;
 
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _clustersSsbo);

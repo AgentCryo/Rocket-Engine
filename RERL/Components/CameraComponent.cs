@@ -1,33 +1,49 @@
 using OpenTK.Mathematics;
 using RCS;
+using RCS.Component_Engine;
 using RCS.Components;
 
 namespace RERL.Components;
 
 /// <summary>
-/// A component that controls a RERL camera using the entity's Transform.
-/// Automatically updates the camera's position, rotation, and view matrix.
+/// A component containing camera state and projection settings.
 /// </summary>
 public class CameraComponent : IComponent
 {
-    public Entity Owner { get; set; }
-    Camera Camera = new Camera();
+    readonly Camera Camera = new();
 
+    /// <summary>
+    /// Gets the underlying camera.
+    /// </summary>
     public Camera GetCamera() => Camera;
 
     /// <summary>
-    /// Sets the projection matrix using a vertical field of view (in degrees).
+    /// Sets the projection matrix using a vertical field of view.
     /// </summary>
-    /// <param name="aspect">Screen width / Screen Height.</param>
-    public void SetProjectionFovYInDegrees(float fovY, float aspect, float near, float far)
-        => Camera.SetProjectionFovYInDegrees(fovY, aspect, near, far);
+    public void SetProjectionFovYInDegrees(
+        float fovY,
+        float aspect,
+        float near,
+        float far)
+        => Camera.SetProjectionFovYInDegrees(
+            fovY,
+            aspect,
+            near,
+            far);
 
     /// <summary>
-    /// Sets the projection matrix using a horizontal field of view (in degrees).
+    /// Sets the projection matrix using a horizontal field of view.
     /// </summary>
-    /// <param name="aspect">Screen width / Screen Height.</param>
-    public void SetProjectionFovXInDegrees(float fovX, float aspect, float near, float far)
-        => Camera.SetProjectionFovXInDegrees(fovX, aspect, near, far);
+    public void SetProjectionFovXInDegrees(
+        float fovX,
+        float aspect,
+        float near,
+        float far)
+        => Camera.SetProjectionFovXInDegrees(
+            fovX,
+            aspect,
+            near,
+            far);
 
     /// <summary>
     /// Sets the camera's world position.
@@ -43,12 +59,14 @@ public class CameraComponent : IComponent
     /// </summary>
     public CameraComponent SetRotationInDegrees(Vector3 rotation)
     {
-        Camera.SetRotation(Quaternion.FromEulerAngles(rotation));
+        Camera.SetRotation(
+            Quaternion.FromEulerAngles(rotation));
+
         return this;
     }
-    
+
     /// <summary>
-    /// Sets the camera's rotation using quaternions.
+    /// Sets the camera's rotation using a quaternion.
     /// </summary>
     public CameraComponent SetRotation(Quaternion rotation)
     {
@@ -56,17 +74,14 @@ public class CameraComponent : IComponent
         return this;
     }
 
-    public void Load() {}
-
     /// <summary>
-    /// Updates the camera to match the owner's Transform component.
+    /// Updates the camera from an entity transform.
     /// </summary>
-    public void Update(float deltaTime)
+    public void SyncTransform(Transform transform)
     {
-        SetPosition(Owner.Transform.Position);
-        SetRotation(Owner.Transform.Rotation);
+        SetPosition(transform.Position);
+        SetRotation(transform.Rotation);
+
         Camera.UpdateViewMatrix();
     }
-
-    public void OnAdd() {}
 }

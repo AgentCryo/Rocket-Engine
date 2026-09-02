@@ -96,82 +96,153 @@ public static class ModelLoader
 
     static Mesh BuildMesh(JsonElement primitive, Dictionary<int, AccessorView<byte>> accessors, JsonElement root, string filePath) {
         var attrs = primitive.GetProperty("attributes");
-
+    
         int posIndex = attrs.GetProperty("POSITION").GetInt32();
         int idxIndex = primitive.GetProperty("indices").GetInt32();
         int nrmIndex = attrs.TryGetProperty("NORMAL", out var nrmProp) ? nrmProp.GetInt32() : -1;
         int uvIndex = attrs.TryGetProperty("TEXCOORD_0", out var uvProp) ? uvProp.GetInt32() : -1;
-
+        int tanIndex = attrs.TryGetProperty("TANGENT", out var tanProp) ? tanProp.GetInt32() : -1;
+    
         var posView = accessors[posIndex];
         var idxView = accessors[idxIndex];
         var nrmView = accessors[nrmIndex];
         var uvView  = accessors[uvIndex];
-
+        var tanView = tanIndex >= 0 ? accessors[tanIndex] : default;
+    
         int vCount = posView.Count;
         int iCount = idxView.Count;
-
+    
         var idxAccessor = root.GetProperty("accessors")[idxIndex];
         string type = idxAccessor.GetProperty("type").GetString();
-
+    
         if (type != "SCALAR")
             throw new Exception($"Index accessor at {idxIndex} is not SCALAR (got {type})");
-
+    
         uint componentType = idxAccessor.GetProperty("componentType").GetUInt32();
-        
-        // Allocate ONLY the final arrays (this is what your renderer needs)
+    
         Vertex[] vertices = new Vertex[vCount];
         uint[] indices = new uint[iCount];
-
-        // Fill vertices
+    
         for (int i = 0; i < vCount; i++)
         {
             ReadVec3(posView, i, out float px, out float py, out float pz);
-            
+    
             float nx, ny, nz;
             if (nrmIndex >= 0) ReadVec3(nrmView, i, out nx, out ny, out nz);
             else nx = ny = nz = 0;
-
+    
             float u, v;
             if (uvIndex >= 0) ReadVec2(uvView, i, out u, out v);
             else u = v = 0;
-
+    
             vertices[i] = new Vertex(
                 new Vector3(px, py, -pz),
                 new Vector3(nx, ny, -nz),
                 new Vector2(u, 1 - v)
             );
+    
+            if (tanIndex >= 0)
+            {
+                ReadVec4(tanView, i, out float tx, out float ty, out float tz, out float tw);
+                // Match the -Z handedness flip applied to position/normal above -
+                // flipping Z on the tangent vector but keeping tw (handedness sign)
+                // as-is, since it's a sign flag, not a coordinate.
+                vertices[i].Tangent = new Vector4(tx, ty, -tz, tw);
+            }
         }
-
+    
         // Fill indices
         for (int i = 0; i < iCount; i++)
             indices[i] = componentType switch
             {
-                5121 => // UNSIGNED_BYTE
-                    ReadByte(idxView, i),
-                5123 => // UNSIGNED_SHORT
-                    ReadUShort(idxView, i),
-                5125 => // UNSIGNED_INT
-                    ReadUInt(idxView, i),
+                5121 => ReadByte(idxView, i),
+                5123 => ReadUShort(idxView, i),
+                5125 => ReadUInt(idxView, i),
                 _ => throw new Exception($"Unsupported index type {componentType}")
             };
-
+    
+        if (tanIndex < 0)
+            ComputeTangents(vertices, indices);
+    
         // Material
         if (!primitive.TryGetProperty("material", out var matElem)) return new Mesh(vertices, indices) { MaterialIndex = RenderPipeline.RegisterMaterial(DefaultMaterial) };
         int gltfMatIndex = matElem.GetInt32();
-
+    
         if (MaterialCache.TryGetValue(gltfMatIndex, out var matIndex))
         {
             //Logger.Log($"Reusing material {matIndex} for glTF material {gltfMatIndex}");
         } else {
             var mat = LoadGltfMaterial(root.GetProperty("materials")[gltfMatIndex], root, filePath);
             matIndex = RenderPipeline.RegisterMaterial(mat);
-
             MaterialCache[gltfMatIndex] = matIndex;
-
             Logger.Log($"Loaded new material {matIndex} for glTF material {gltfMatIndex}");
         }
-
+    
         return new Mesh(vertices, indices) { MaterialIndex = matIndex };
+    }
+    
+    static unsafe void ReadVec4(AccessorView<byte> view, int index, out float x, out float y, out float z, out float w)
+    {
+        int stride = view.Stride == 0 ? sizeof(float) * 4 : view.Stride;
+        fixed (byte* ptr = &view.Buffer[view.Offset + index * stride])
+        {
+            float* f = (float*)ptr;
+            x = f[0];
+            y = f[1];
+            z = f[2];
+            w = f[3];
+        }
+    }
+    
+    /// <summary>
+    /// Fallback for meshes with no glTF TANGENT accessor - computes per-vertex
+    /// tangents from UVs and averages contributions across shared vertices,
+    /// the standard approach (same one used by e.g. Blender's/Assimp's exporters).
+    /// </summary>
+    static void ComputeTangents(Vertex[] vertices, uint[] indices)
+    {
+        Vector3[] tan = new Vector3[vertices.Length];
+    
+        for (int i = 0; i < indices.Length; i += 3)
+        {
+            uint i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+    
+            Vector3 p0 = vertices[i0].Position, p1 = vertices[i1].Position, p2 = vertices[i2].Position;
+            Vector2 uv0 = vertices[i0].UV, uv1 = vertices[i1].UV, uv2 = vertices[i2].UV;
+    
+            Vector3 edge1 = p1 - p0;
+            Vector3 edge2 = p2 - p0;
+            Vector2 deltaUV1 = uv1 - uv0;
+            Vector2 deltaUV2 = uv2 - uv0;
+    
+            float denom = deltaUV1.X * deltaUV2.Y - deltaUV2.X * deltaUV1.Y;
+            if (MathF.Abs(denom) < 1e-8f) continue;
+            float f = 1.0f / denom;
+    
+            Vector3 tangent = f * (deltaUV2.Y * edge1 - deltaUV1.Y * edge2);
+    
+            tan[i0] += tangent;
+            tan[i1] += tangent;
+            tan[i2] += tangent;
+        }
+    
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 n = vertices[i].Normal;
+            Vector3 t = tan[i];
+    
+            if (t.LengthSquared < 1e-12f)
+            {
+                // Degenerate (isolated vertex, zero-area triangles) - fall back to
+                // any vector orthogonal to the normal so the TBN basis is still valid.
+                t = MathF.Abs(n.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY;
+            }
+    
+            // Gram-Schmidt orthogonalize against the normal.
+            t = (t - n * Vector3.Dot(n, t)).Normalized();
+    
+            vertices[i].Tangent = new Vector4(t, 1.0f); // handedness fixed to +1 for the computed fallback
+        }
     }
     
     public static List<ModelReturn> ParseGltf(string filePath, bool isGlb)

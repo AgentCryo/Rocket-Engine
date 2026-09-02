@@ -21,13 +21,18 @@ public static class ImageLoader
         public long   SourceSize { get; set; }
         public long   SourceTimestampTicks { get; set; }
         public string DdsPath { get; set; } = "";
+        public bool   IsLinear { get; set; }
     }
     
     static readonly string CacheRoot = Path.GetFullPath("EngineCache/Textures").Replace('\\', '/');
 
-    static string ComputeKey(string sourcePath, FileInfo info)
+    static string ComputeKey(string sourcePath, FileInfo info, bool isLinear)
     {
-        return $"{sourcePath}:{info.LastWriteTimeUtc.Ticks}:{info.Length}";
+        // isLinear is part of the cache key - the same source file loaded once
+        // as color data and once as linear data (e.g. reused as both an albedo
+        // and, unusually, a normal map) must produce two distinct cached DDS
+        // files, since the GPU internal format differs.
+        return $"{sourcePath}:{info.LastWriteTimeUtc.Ticks}:{info.Length}:{(isLinear ? "linear" : "srgb")}";
     }
 
     static string SHA1(string text)
@@ -45,14 +50,27 @@ public static class ImageLoader
         string meta = Path.Combine(CacheRoot, $"{hash}.meta").Replace('\\', '/');
         return (dds, meta);
     }
-    
-    public static int LoadTexture(string path)
+
+    /// <summary>
+    /// Loads a texture from disk. <paramref name="isLinear"/> must be true for
+    /// data textures (normal maps, roughness/metallic, etc.) and false for
+    /// color textures (albedo/base color) - it controls whether the texture is
+    /// uploaded/converted as sRGB (gamma-decoded on sample) or linear. Getting
+    /// this wrong silently corrupts the sampled values: sRGB-decoding a normal
+    /// map distorts its XYZ components, and skipping sRGB decode on an albedo
+    /// map washes out its colors.
+    /// </summary>
+    public static int LoadTexture(string path, bool isLinear = false)
     {
         path = Path.GetFullPath(path).Replace('\\', '/');
 
-        if (_textureCache.TryGetValue(path, out int cachedTex))
+        // Cache key includes isLinear (via the internal cache dictionary key
+        // below) so the same path loaded both ways doesn't collide.
+        string cacheKey = isLinear ? $"{path}:linear" : path;
+
+        if (_textureCache.TryGetValue(cacheKey, out int cachedTex))
         {
-            Logger.Log($"Reusing cached texture: {cachedTex}: {path}");
+            Logger.Log($"Reusing cached texture: {cachedTex}: {path} (linear={isLinear})");
             LogBindlessReuse(cachedTex);
             return cachedTex;
         }
@@ -61,48 +79,49 @@ public static class ImageLoader
 
         if (ext == ".dds")
         {
-            int texFromDds = LoadDdsTexture(path);
-            return RegisterTexture(path, texFromDds);
+            int texFromDds = LoadDdsTexture(path, isLinear);
+            return RegisterTexture(cacheKey, texFromDds);
         }
 
         if (ext is ".png" or ".jpg" or ".jpeg")
         {
             var info = new FileInfo(path);
-            var key  = ComputeKey(path, info);
+            var key  = ComputeKey(path, info, isLinear);
             var hash = SHA1(key);
             var (ddsPath, metaPath) = GetCachePaths(hash);
 
             if (File.Exists(ddsPath) && File.Exists(metaPath))
             {
-                Logger.Log($"Using cached DDS for {path} -> {ddsPath}");
-                int texFromDds = LoadDdsTexture(ddsPath);
-                return RegisterTexture(path, texFromDds);
+                Logger.Log($"Using cached DDS for {path} -> {ddsPath} (linear={isLinear})");
+                int texFromDds = LoadDdsTexture(ddsPath, isLinear);
+                return RegisterTexture(cacheKey, texFromDds);
             }
 
-            if (TryConvertToDds(path, ddsPath))
+            if (TryConvertToDds(path, ddsPath, isLinear))
             {
                 SaveMeta(metaPath, new TextureMeta
                 {
                     SourcePath = path,
                     SourceSize = info.Length,
                     SourceTimestampTicks = info.LastWriteTimeUtc.Ticks,
-                    DdsPath = ddsPath
+                    DdsPath = ddsPath,
+                    IsLinear = isLinear
                 });
 
-                int texFromDds = LoadDdsTexture(ddsPath);
-                return RegisterTexture(path, texFromDds);
+                int texFromDds = LoadDdsTexture(ddsPath, isLinear);
+                return RegisterTexture(cacheKey, texFromDds);
             }
 
             Logger.Warning($"DDS conversion failed for {path}, falling back to direct upload.");
-            int texFallback = LoadUncompressedTexture(path);
-            return RegisterTexture(path, texFallback);
+            int texFallback = LoadUncompressedTexture(path, isLinear);
+            return RegisterTexture(cacheKey, texFallback);
         }
 
-        int tex = LoadUncompressedTexture(path);
-        return RegisterTexture(path, tex);
+        int tex = LoadUncompressedTexture(path, isLinear);
+        return RegisterTexture(cacheKey, tex);
     }
 
-    static int LoadUncompressedTexture(string path)
+    static int LoadUncompressedTexture(string path, bool isLinear)
     {
         using var stream = File.OpenRead(path);
         StbImage.stbi_set_flip_vertically_on_load(1);
@@ -117,12 +136,12 @@ public static class ImageLoader
         int tex = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, tex);
 
-        Logger.Log($"Loading texture (uncompressed): {tex}: {path}");
+        Logger.Log($"Loading texture (uncompressed, {(isLinear ? "linear" : "sRGB")}): {tex}: {path}");
 
         GL.TexImage2D(
             TextureTarget.Texture2D,
             level: 0,
-            internalformat: PixelInternalFormat.Srgb8Alpha8,
+            internalformat: isLinear ? PixelInternalFormat.Rgba8 : PixelInternalFormat.Srgb8Alpha8,
             width: img.Width,
             height: img.Height,
             border: 0,
@@ -131,7 +150,8 @@ public static class ImageLoader
             pixels: img.Data
         );
 
-        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear); //8ms with texture
+        //GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear); // 14ms with texture.
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
@@ -147,7 +167,7 @@ public static class ImageLoader
         return JsonSerializer.Deserialize<TextureMeta>(json)!;
     }
 
-    static bool TryConvertToDds(string sourcePath, string ddsOutPath)
+    static bool TryConvertToDds(string sourcePath, string ddsOutPath, bool isLinear)
     {
         try
         {
@@ -155,7 +175,12 @@ public static class ImageLoader
             Directory.CreateDirectory(cacheDir);
 
             string texconvPath = Path.Combine(AppContext.BaseDirectory, "RocketEngine/Tools", "texconv.exe");
-            string args = $"-f R8G8B8A8_UNORM -nologo -m 1 -srgb:i -o \"{cacheDir}\" \"{sourcePath}\"";
+            // -srgb:i only applies for color data - normal/data maps must NOT
+            // be tagged sRGB, or the DDS's stored format will trigger gamma
+            // decode on sample regardless of what internal format we later
+            // request when uploading.
+            string srgbFlag = isLinear ? "" : "-srgb:i ";
+            string args = $"-f R8G8B8A8_UNORM {srgbFlag}-nologo -m 1 -o \"{cacheDir}\" \"{sourcePath}\"";
 
             var psi = new ProcessStartInfo {
                 FileName = texconvPath,
@@ -253,30 +278,38 @@ public static class ImageLoader
         public uint Reserved2;
     }
     
-    static PixelInternalFormat DxgiToGL(uint dxgi) =>
+    /// <summary>
+    /// Maps a DXGI format to a GL internal format. <paramref name="isLinear"/>
+    /// forces the non-sRGB variant regardless of what texconv actually wrote,
+    /// since -srgb:i is skipped for linear textures during conversion but the
+    /// DXGI format code texconv emits for R8G8B8A8_UNORM is the same either
+    /// way - the sRGB-ness only shows up in whether texconv chose the _SRGB
+    /// DXGI value at all, and we've already ensured it won't for linear data.
+    /// </summary>
+    static PixelInternalFormat DxgiToGL(uint dxgi, bool isLinear) =>
         dxgi switch
         {
-            28 => PixelInternalFormat.Rgba8,          // DXGI_FORMAT_R8G8B8A8_UNORM
-            29 => PixelInternalFormat.Srgb8Alpha8,    // DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+            28 => PixelInternalFormat.Rgba8,                                                     // DXGI_FORMAT_R8G8B8A8_UNORM
+            29 => isLinear ? PixelInternalFormat.Rgba8 : PixelInternalFormat.Srgb8Alpha8,         // DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
 
-            98 => PixelInternalFormat.CompressedRgbaBptcUnorm,        // BC7 linear
-            99 => PixelInternalFormat.CompressedSrgbAlphaBptcUnorm,   // BC7 sRGB
+            98 => isLinear ? PixelInternalFormat.CompressedRgbaBptcUnorm : PixelInternalFormat.CompressedRgbaBptcUnorm,        // BC7 linear
+            99 => isLinear ? PixelInternalFormat.CompressedRgbaBptcUnorm : PixelInternalFormat.CompressedSrgbAlphaBptcUnorm,   // BC7 sRGB
 
             95 => PixelInternalFormat.CompressedRgbBptcSignedFloat,   // BC6H signed
             96 => PixelInternalFormat.CompressedRgbBptcUnsignedFloat, // BC6H unsigned
 
-            71 => PixelInternalFormat.CompressedRgbaS3tcDxt1Ext,      // BC1 linear
-            72 => PixelInternalFormat.CompressedSrgbS3tcDxt1Ext,      // BC1 sRGB
+            71 => PixelInternalFormat.CompressedRgbaS3tcDxt1Ext,                                                                 // BC1 linear
+            72 => isLinear ? PixelInternalFormat.CompressedRgbaS3tcDxt1Ext : PixelInternalFormat.CompressedSrgbS3tcDxt1Ext,      // BC1 sRGB
 
-            77 => PixelInternalFormat.CompressedRgbaS3tcDxt5Ext,      // BC3 linear
-            78 => PixelInternalFormat.CompressedSrgbAlphaS3tcDxt5Ext, // BC3 sRGB
+            77 => PixelInternalFormat.CompressedRgbaS3tcDxt5Ext,                                                                 // BC3 linear
+            78 => isLinear ? PixelInternalFormat.CompressedRgbaS3tcDxt5Ext : PixelInternalFormat.CompressedSrgbAlphaS3tcDxt5Ext, // BC3 sRGB
 
-            83 => PixelInternalFormat.CompressedRgRgtc2,              // BC5
+            83 => PixelInternalFormat.CompressedRgRgtc2,              // BC5 (normal maps typically land here - always linear, no sRGB variant exists)
 
             _ => throw new NotSupportedException($"DXGI format {dxgi} not supported")
         };
 
-    static int LoadDdsTexture(string ddsPath)
+    static int LoadDdsTexture(string ddsPath, bool isLinear)
     {
         using var fs = File.OpenRead(ddsPath);
         using var br = new BinaryReader(fs);
@@ -327,8 +360,8 @@ public static class ImageLoader
                 MiscFlags2 = br.ReadUInt32()
             };
 
-            internalFormat = DxgiToGL(dx10.DxgiFormat);
-        } else internalFormat = PixelInternalFormat.Srgb8Alpha8;
+            internalFormat = DxgiToGL(dx10.DxgiFormat, isLinear);
+        } else internalFormat = isLinear ? PixelInternalFormat.Rgba8 : PixelInternalFormat.Srgb8Alpha8;
 
         int width = (int)header.Width;
         int height = (int)header.Height;
@@ -348,17 +381,7 @@ public static class ImageLoader
         int tex = GL.GenTexture();
         GL.BindTexture(TextureTarget.Texture2D, tex);
         
-        GL.TexImage2D(
-            TextureTarget.Texture2D,
-            0,
-            internalFormat,
-            width,
-            height,
-            0,
-            PixelFormat.Rgba,
-            PixelType.UnsignedByte,
-            flipped
-        );
+        GL.TexImage2D(TextureTarget.Texture2D, 0, internalFormat, width, height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, flipped);
 
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
@@ -370,12 +393,12 @@ public static class ImageLoader
         return tex;
     }
 
-    static int RegisterTexture(string sourcePath, int tex)
+    static int RegisterTexture(string cacheKey, int tex)
     {
         if (tex == 0)
             return 0;
 
-        _textureCache[sourcePath] = tex;
+        _textureCache[cacheKey] = tex;
 
         ulong handle = (ulong)GL.Arb.GetTextureHandle(tex);
         GL.Arb.MakeTextureHandleResident(handle);

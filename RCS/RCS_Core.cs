@@ -1,211 +1,99 @@
-﻿using RCS.Components;
-using System.Text;
-using static RCS.Logger;
-
-namespace RCS;
+﻿namespace RCS;
 
 /// <summary>
-/// Core static class for managing scenes, entities, and the active scene.
+/// Core entry point for managing worlds and the active world.
 /// </summary>
 public static class RCS_Core
 {
+    static readonly Dictionary<string, World> Worlds = [];
+
+    static string _activeWorld = "";
+
     /// <summary>
-    /// Represents a scene containing entities and providing update/load behavior.
+    /// Gets the currently active world.
     /// </summary>
-    /// <param name="name">The name of the scene.</param>
-    public class Scene(string name)
+    public static World GetActiveWorld()
     {
-        readonly string _name = name;
-        /// <summary>
-        /// Gets the name of the scene.
-        /// </summary>
-        public string GetName() => _name;
-        readonly Dictionary<string, Entity> _entities = [];
-
-        #region Entity Management
-
-        /// <summary>
-        /// Adds an entity to the scene.
-        /// </summary>
-        /// <param name="entity">The entity to add.</param>
-        /// <returns>The current <see cref="Scene"/> instance for chaining.</returns>
-        /// <exception cref="Exception">Thrown if an entity with the same name already exists.</exception>
-        public Scene AddEntity(Entity entity)
+        if (string.IsNullOrEmpty(_activeWorld))
         {
-            if (_entities.ContainsKey(entity.GetName()))
-                Error($"Entity with name {entity.GetName()} already exists"); //throw new Exception($"ERR: Entity with name {entity.GetName()} already exists");
-            
-            _entities.Add(entity.GetName(), entity);
-            return this;
-        }
-        
-        /// <summary>
-        /// Removes an entity from the scene.
-        /// </summary>
-        /// <param name="entity">The entity to remove.</param>
-        /// <exception cref="Exception">Thrown if the entity does not exist.</exception>
-        public void RemoveEntity(Entity entity)
-        {
-            if (!_entities.Remove(entity.GetName())) 
-                Error($"Entity with name {entity.GetName()} was not found"); //throw new Exception($"ERR: Entity with name {entity.GetName()} was not found");
-        }
-        
-        /// <summary>
-        /// Removes an entity from the scene by name.
-        /// </summary>
-        /// <param name="name">The name of the entity to remove.</param>
-        /// <exception cref="Exception">Thrown if the entity does not exist.</exception>
-        public void RemoveEntity(string name)
-        {
-            if (!_entities.Remove(name, out var entity))
-                Error($"Entity with name {name} was not found"); //throw new Exception($"ERR: Entity with name {name} was not found");
-        }
-        
-        /// <summary>
-        /// Removes all entities from the scene.
-        /// </summary>
-        public void RemoveAllEntities() => _entities.Clear();
-
-        /// <summary>
-        /// Attempts to retrieve an entity by name.
-        /// </summary>
-        /// <param name="name">The name of the entity.</param>
-        /// <param name="entity">The retrieved entity.</param>
-        /// <exception cref="Exception">Thrown if the entity does not exist.</exception>
-        public void GetEntity(string name, out Entity entity)
-        {
-            // ReSharper disable once NullableWarningSuppressionIsUsed
-            if (!_entities.TryGetValue(name, out entity!)) Error($"Entity with name {name} was not found"); //throw new Exception($"ERR: Entity with name {name} was not found");
-        }
-        
-        /// <summary>
-        /// Retrieves an entity by name.
-        /// </summary>
-        /// <param name="name">The name of the entity.</param>
-        /// <returns>The entity with the given name.</returns>
-        /// <exception cref="Exception">Thrown if the entity does not exist.</exception>
-        public Entity GetEntity(string name)
-        {
-            if(_entities.TryGetValue(name, out var entity)) return entity;
-            Error($"Entity with name {name} was not found"); //throw new Exception($"ERR: Entity with name {name} was not found");
-            // ReSharper disable once NullableWarningSuppressionIsUsed
-            return null!; //Should never be called as Error by default throws an Exception.
+            throw new InvalidOperationException(
+                "Failed to get active world: Active world not set.");
         }
 
-        /// <summary>
-        /// Retrieves a component of type <typeparamref name="T"/> from an entity.
-        /// </summary>
-        /// <typeparam name="T">The component type.</typeparam>
-        /// <param name="name">The name of the entity.</param>
-        /// <returns>The component instance.</returns>
-        public T GetComponentFromEntity<T>(string name) where T : class, IComponent
+        if (!Worlds.TryGetValue(_activeWorld, out var world))
         {
-            return GetEntity(name).GetComponent<T>();
-        }
-        
-        #endregion
-        
-        /// <summary>
-        /// Calls <c>Load()</c> on all entities in the scene.
-        /// </summary>
-        public void Load()
-        {
-            foreach (var entity in _entities)
-                entity.Value.Load();
+            throw new InvalidOperationException(
+                $"Active world '{_activeWorld}' was not found.");
         }
 
-        /// <summary>
-        /// Updates all entities in the scene.
-        /// </summary>
-        /// <param name="deltaTime">The time elapsed since the last update.</param>
-        public void Update(double deltaTime)
-        {
-            foreach (var entity in _entities)
-                entity.Value.Update((float)deltaTime);
-        }
-    }
-
-    static readonly Dictionary<string, Scene> Scenes = [];
-    static string _activeScene = "";
-    
-    public static Scene GetActiveScene()
-    {
-        if (string.IsNullOrEmpty(_activeScene))
-            Error($"Failed to get active scene: Active scene not set."); //throw new Exception($"ERR: Failed to get active scene: Active scene not set.");
-        
-        return Scenes[_activeScene];
+        return world;
     }
 
     /// <summary>
-    /// Sets the active scene by name.
+    /// Sets the active world by name.
     /// </summary>
-    /// <param name="name">The name of the scene to activate.</param>
-    /// <exception cref="Exception">Thrown if the scene does not exist.</exception>
-    public static void SetActiveScene(string name)
+    public static void SetActiveWorld(string name)
     {
-        if (!Scenes.TryGetValue(name, out var scene))
-            Error($"Scene with name {name} was not found"); //throw new Exception($"ERR: Scene with name {name} was not found");
-        
-        _activeScene = name;
+        if (!Worlds.ContainsKey(name))
+        {
+            throw new KeyNotFoundException(
+                $"World with name '{name}' was not found.");
+        }
+
+        _activeWorld = name;
     }
 
     /// <summary>
-    /// Adds a scene to the engine.
+    /// Adds a world to the engine.
     /// </summary>
-    /// <param name="scene">The scene to add.</param>
-    /// <exception cref="Exception">Thrown if a scene with the same name already exists.</exception>
-    public static void AddScene(Scene scene)
+    public static void AddWorld(string name, World world)
     {
-        if (Scenes.ContainsKey(scene.GetName()))
-            Error($"Scene with name {scene.GetName()} already exists"); //throw new Exception($"ERR: Scene with name {scene.GetName()} already exists");
+        ArgumentNullException.ThrowIfNull(world);
 
-        Scenes.Add(scene.GetName(), scene);
+        if (Worlds.ContainsKey(name))
+        {
+            throw new InvalidOperationException(
+                $"World with name '{name}' already exists.");
+        }
+
+        Worlds.Add(name, world);
     }
 
     /// <summary>
-    /// Removes a scene from the engine.
+    /// Removes a world from the engine by name.
     /// </summary>
-    /// <param name="scene">The scene to remove.</param>
-    /// <exception cref="Exception">Thrown if the scene does not exist.</exception>
-    public static void RemoveScene(Scene scene)
+    public static void RemoveWorld(string name)
     {
-        if (!Scenes.Remove(scene.GetName()))
-            Error($"Scene with name {scene.GetName()} was not found"); //throw new Exception($"ERR: Scene with name {scene.GetName()} was not found");
+        if (!Worlds.Remove(name))
+        {
+            throw new KeyNotFoundException(
+                $"World with name '{name}' was not found.");
+        }
+
+        if (_activeWorld == name)
+            _activeWorld = "";
     }
 
     /// <summary>
-    /// Removes a scene from the engine by name.
+    /// Removes a world from the engine.
     /// </summary>
-    /// <param name="name">The name of the scene to remove.</param>
-    /// <exception cref="Exception">Thrown if the scene does not exist.</exception>
-    public static void RemoveScene(string name)
+    public static void RemoveWorld(World world)
     {
-        if (!Scenes.Remove(name, out var scene))
-            Error($"Scene with name {name} was not found."); //throw new Exception($"ERR: Scene with name {name} was not found");
-    }
+        ArgumentNullException.ThrowIfNull(world);
 
-    /// <summary>
-    /// Loads the currently active scene.
-    /// </summary>
-    /// <exception cref="Exception">Thrown if no active scene is set.</exception>
-    public static void LoadActiveScene()
-    {
-        if (string.IsNullOrEmpty(_activeScene))
-            Error("No active scene has been set."); //throw new Exception("ERR: No active scene has been set");
+        foreach (var pair in Worlds)
+        {
+            if (!ReferenceEquals(pair.Value, world))
+                continue;
 
-        Scenes[_activeScene].Load();
-    }
+            Worlds.Remove(pair.Key);
 
-    /// <summary>
-    /// Updates the currently active scene.
-    /// </summary>
-    /// <param name="deltaTime">The time elapsed since the last update.</param>
-    /// <exception cref="Exception">Thrown if no active scene is set.</exception>
-    public static void UpdateActiveScene(double deltaTime)
-    {
-        if (_activeScene is null)
-            Error($"No active scene has been set."); //throw new Exception("ERR: No active scene has been set");
+            if (_activeWorld == pair.Key)
+                _activeWorld = "";
 
-        Scenes[_activeScene].Update(deltaTime);
+            return;
+        }
+
+        throw new KeyNotFoundException("World was not found.");
     }
 }

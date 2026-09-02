@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using RCS;
+using RCS.Component_Engine;
 using RCS.Components;
 using RERL.Shader_Engine;
 using static RERL.Loaders.MaterialLoader;
@@ -11,9 +12,7 @@ using static RERL.RERL_Core;
 
 namespace RERL.Components;
 
-public class ModelRenderer : IComponent, Renderable
-{
-    public Entity Owner { get; set; }
+public class ModelRenderer : IOwnerComponent, Renderable {
 
     Model? _model;
     GraphicsShader? _shader;
@@ -47,11 +46,11 @@ public class ModelRenderer : IComponent, Renderable
         return this;
     }
 
-    public void OnAdd()
-    {
-        if (AutoRegister)
-            RenderPipeline.RegisterRenderable(this);
-    }
+    //public void OnAdd()
+    //{
+    //    if (AutoRegister)
+    //        RenderPipeline.RegisterRenderable(this);
+    //}
 
     public void BuildModelBuffers()
     {
@@ -133,6 +132,12 @@ public class ModelRenderer : IComponent, Renderable
         GL.EnableVertexAttribArray(2);
         GL.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, stride, 24);
 
+        // Tangent (location = 3) - xyz = tangent, w = handedness. Required by
+        // default.vert's TBN construction; without this the attribute reads
+        // as vec4(0,0,0,0) for every vertex and normal mapping degenerates.
+        GL.EnableVertexAttribArray(3);
+        GL.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, 32);
+
         // Material Indexes (location = 4)
         GL.BindBuffer(BufferTarget.ArrayBuffer, _materialVbo);
         GL.BufferData(BufferTarget.ArrayBuffer,
@@ -181,16 +186,13 @@ public class ModelRenderer : IComponent, Renderable
         _materialSSBO = GL.GenBuffer();
         GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _materialSSBO);
 
+        // Routed through RenderData.ToGpu instead of hand-building each field -
+        // that's the single source of truth for the CPU->GPU material layout
+        // (and the only place that was setting NormalHandleLo/Hi correctly).
         var materials = new GPUMaterial[materialArray.Count];
 
         for (int i = 0; i < materialArray.Count; i++)
-        {
-            ulong h = materialArray[i].AlbedoHandle;
-
-            materials[i].BaseColor      = new Vector4(materialArray[i].BaseAlbedo, 1.0f);
-            materials[i].AlbedoHandleLo = (uint)(h & 0xFFFFFFFF);
-            materials[i].AlbedoHandleHi = (uint)(h >> 32);
-        }
+            materials[i] = RenderData.ToGpu(materialArray[i]);
         
         GL.BufferData(
             BufferTarget.ShaderStorageBuffer,
@@ -219,14 +221,16 @@ public class ModelRenderer : IComponent, Renderable
         }
     }
 
-    public void Render(int instanceCount = 1)
-    {
+    public void Render(int instanceCount = 1) {
         if (_model is not { } model) { Logger.Warning("ModelRenderer added without a model."); return; }
         if (_shader == null) { Logger.Warning("ModelRenderer added without a shader."); return; }
 
         //GL.GetInteger(GetPName.CurrentProgram, out var activeShader);
         //if(activeShader != _shader.Handle) _shader.Use();
-        _shader.Set("uModel", Owner.Transform.WorldMatrix, false);
+        
+        ref var transform = ref RCS_Core.GetActiveWorld().Get<Transform>(Owner);
+
+        _shader.Set("uModel", transform.WorldMatrix, false);
 
         GL.BindVertexArray(_vao);
 
@@ -266,14 +270,7 @@ public class ModelRenderer : IComponent, Renderable
         var materials = new GPUMaterial[_localMaterials.Count];
 
         for (int i = 0; i < _localMaterials.Count; i++)
-        {
-            var mat = _localMaterials[i];
-            ulong h = mat.AlbedoHandle;
-
-            materials[i].BaseColor      = new Vector4(mat.BaseAlbedo, 1.0f);
-            materials[i].AlbedoHandleLo = (uint)(h & 0xFFFFFFFF);
-            materials[i].AlbedoHandleHi = (uint)(h >> 32);
-        }
+            materials[i] = RenderData.ToGpu(_localMaterials[i]);
 
         GL.BufferData(
             BufferTarget.ShaderStorageBuffer,
@@ -298,4 +295,6 @@ public class ModelRenderer : IComponent, Renderable
 
         _vao = _vbo = _materialVbo = _ibo = _singleIndirect = _doubleIndirect = _materialSSBO = 0;
     }
+
+    public Entity Owner { get; set; }
 }
